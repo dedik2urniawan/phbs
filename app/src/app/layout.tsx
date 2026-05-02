@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
+import PWAInstallPrompt from "@/components/PWAInstallPrompt"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id" className={`${inter.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-gray-50 font-sans antialiased">
         {children}
+        <PWAInstallPrompt />
       </body>
     </html>
   )

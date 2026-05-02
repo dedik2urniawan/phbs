@@ -79,6 +79,18 @@ export default function HouseholdsClient({
     setLoading(false)
   }, [supabase])
 
+  const handleDelete = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus data KK ini? Data survei yang terkait juga mungkin akan terhapus.')) return;
+    
+    const { error } = await supabase.from('households').delete().eq('id', id);
+    if (!error) {
+      setHouseholds(prev => prev.filter(h => h.id !== id));
+      setTotal(prev => prev - 1);
+    } else {
+      alert('Gagal menghapus data KK: ' + error.message);
+    }
+  }
+
   const filtered = households.filter(h => {
     const matchSearch = !search ||
       h.nama_kk.toLowerCase().includes(search.toLowerCase()) ||
@@ -235,6 +247,14 @@ export default function HouseholdsClient({
                       className="text-xs bg-gray-50 text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
                       Detail
                     </Link>
+                    <Link href={`${basePath}/households/${h.id}/edit`}
+                      className="text-xs bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                      Edit
+                    </Link>
+                    <button onClick={() => handleDelete(h.id)}
+                      className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                      Delete
+                    </button>
                   </div>
                 </div>
                 <p className="text-gray-300 text-xs mt-2">
