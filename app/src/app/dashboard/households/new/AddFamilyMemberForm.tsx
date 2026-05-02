@@ -150,7 +150,7 @@ export default function AddFamilyMemberForm({ householdId, onDone, onSkip }: Pro
                   value={m.nama}
                   onChange={e => updateMember(idx, 'nama', e.target.value)}
                   placeholder="Nama sesuai KTP"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
                   required
                 />
               </div>
@@ -167,7 +167,7 @@ export default function AddFamilyMemberForm({ householdId, onDone, onSkip }: Pro
                   placeholder="16 digit NIK"
                   maxLength={16}
                   inputMode="numeric"
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-mono ${
+                  className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-mono ${
                     nikErrors[idx] ? 'border-red-400 bg-red-50' : 
                     nikInfos[idx] ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200'
                   }`}
@@ -218,7 +218,7 @@ export default function AddFamilyMemberForm({ householdId, onDone, onSkip }: Pro
                   value={m.tgl_lahir}
                   onChange={e => updateMember(idx, 'tgl_lahir', e.target.value)}
                   max={new Date().toISOString().split('T')[0]}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
                   required
                 />
               </div>
@@ -231,7 +231,7 @@ export default function AddFamilyMemberForm({ householdId, onDone, onSkip }: Pro
                 <select
                   value={m.hubungan_kk}
                   onChange={e => updateMember(idx, 'hubungan_kk', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
                 >
                   {HUBUNGAN_OPTIONS.map(o => <option key={o}>{o}</option>)}
                 </select>
@@ -243,7 +243,7 @@ export default function AddFamilyMemberForm({ householdId, onDone, onSkip }: Pro
                 <select
                   value={m.pendidikan}
                   onChange={e => updateMember(idx, 'pendidikan', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
                 >
                   {PENDIDIKAN_OPTIONS.map(o => <option key={o} value={o}>{o || '— Pilih —'}</option>)}
                 </select>
@@ -255,7 +255,7 @@ export default function AddFamilyMemberForm({ householdId, onDone, onSkip }: Pro
                 <select
                   value={m.pekerjaan}
                   onChange={e => updateMember(idx, 'pekerjaan', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
                 >
                   {PEKERJAAN_OPTIONS.map(o => <option key={o} value={o}>{o || '— Pilih —'}</option>)}
                 </select>

@@ -7,26 +7,30 @@ import { AppUser } from '@/lib/types'
 interface Props {
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
   totalKK: number
+  kkDisurvei: number
+  persentaseDisurvei: number
+  capaianPhbs: number
 }
 
-export default function DashboardClient({ user, totalKK }: Props) {
+export default function DashboardClient({ user, totalKK, kkDisurvei, persentaseDisurvei, capaianPhbs }: Props) {
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
+  const year = new Date().getFullYear();
 
   return (
     <div className="p-8">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-800">Selamat Datang 👋</h2>
-          <p className="text-gray-500 mt-1">{puskesmasName} — Tahun Survei {new Date().getFullYear()}</p>
+          <p className="text-gray-500 mt-1">{puskesmasName} — Tahun Survei {year}</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {[
             { label: 'Total KK Terdaftar', value: totalKK.toLocaleString('id'), icon: '🏠', color: 'from-emerald-500 to-teal-600', sub: 'Rumah tangga' },
-            { label: 'KK Disurvei 2025', value: '0', icon: '📋', color: 'from-blue-500 to-indigo-600', sub: 'Belum ada data' },
-            { label: 'Target Survei', value: '20-28%', icon: '🎯', color: 'from-amber-500 to-orange-600', sub: 'Dari total KK' },
-            { label: 'Capaian PHBS', value: '0%', icon: '📈', color: 'from-purple-500 to-pink-600', sub: 'Rumah Sehat' },
+            { label: `KK Disurvei ${year}`, value: kkDisurvei.toLocaleString('id'), icon: '📋', color: 'from-blue-500 to-indigo-600', sub: kkDisurvei === 0 ? 'Belum ada data' : 'Keluarga' },
+            { label: 'Target Survei', value: `${persentaseDisurvei}%`, icon: '🎯', color: 'from-amber-500 to-orange-600', sub: 'Dari total KK' },
+            { label: 'Capaian PHBS', value: `${capaianPhbs}%`, icon: '📈', color: 'from-purple-500 to-pink-600', sub: 'Rumah Sehat' },
           ].map((stat) => (
             <div key={stat.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className={`bg-gradient-to-r ${stat.color} p-4`}>

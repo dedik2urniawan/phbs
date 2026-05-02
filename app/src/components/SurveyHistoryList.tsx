@@ -8,9 +8,23 @@ import { offlineDB } from '@/lib/db/offline'
 
 interface Survey {
   id: string
-  skor: number
   created_at: string
   sync_status?: string
+  [key: string]: any
+}
+
+function calculateSkor(s: Survey) {
+  const boolKeys = ['i4_air_bersih','i5_cuci_tangan','i6_jamban_sehat','i7_psn',
+    'i8_makan_sayur_buah','i9_aktivitas_fisik','i10_tidak_merokok','i11_cek_kesehatan',
+    'i12_kunjungan_posyandu','i14_ibu_hamil','i16_remaja_putri']
+  const nullableKeys = ['i1_persalinan_nakes','i2_asi_eksklusif','i3_menimbang_balita',
+    'i15_ibu_hamil_ttd','i17_remaja_putri_ttd']
+  let total = 0; let max = 0;
+  boolKeys.forEach(k => { max++; if (s[k]) total++ })
+  nullableKeys.forEach(k => { 
+    if (s[k] !== undefined && s[k] !== null) { max++; if (s[k]) total++ }
+  })
+  return max > 0 ? Math.round((total/max)*100) : 0
 }
 
 export default function SurveyHistoryList({ surveys: initialSurveys, basePath }: { surveys: Survey[], basePath: string }) {
@@ -50,7 +64,7 @@ export default function SurveyHistoryList({ surveys: initialSurveys, basePath }:
       {surveys.map(s => (
         <div key={s.id} className="p-4 border border-gray-100 rounded-xl bg-blue-50/50 hover:shadow-sm transition-all flex justify-between items-center">
           <div>
-            <p className="font-semibold text-sm text-gray-800">Skor PHBS: <span className="text-blue-700">{s.skor ?? '-'}</span></p>
+            <p className="font-semibold text-sm text-gray-800">Skor PHBS: <span className="text-blue-700">{calculateSkor(s)}</span></p>
             <p className="text-xs text-gray-500 mt-1">{new Date(s.created_at).toLocaleDateString('id-ID', { dateStyle: 'medium' })}</p>
             {s.sync_status === 'pending' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded mt-1 inline-block">Pending Sync</span>}
           </div>

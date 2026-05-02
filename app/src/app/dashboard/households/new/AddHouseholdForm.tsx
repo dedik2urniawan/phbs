@@ -181,7 +181,7 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
     value: form[name],
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(prev => ({ ...prev, [name]: e.target.value })),
-    className: `w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all ${
+    className: `w-full border rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all ${
       fieldErrors[name] ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'
     }`,
   })
@@ -282,7 +282,7 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
                   <select 
                     value={form.puskesmas_id || ''}
                     onChange={e => setForm(p => ({ ...p, puskesmas_id: e.target.value, desa_id: '' }))}
-                    className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
+                    className={`w-full border rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
                       fieldErrors.puskesmas_id ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'
                     }`}
                   >

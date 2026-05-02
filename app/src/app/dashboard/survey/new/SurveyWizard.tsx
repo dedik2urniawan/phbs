@@ -396,7 +396,7 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
                 const h = householdList.find(h => h.id === e.target.value)
                 setHousehold(h || null)
               }}
-              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
             >
               <option value="">— Pilih KK —</option>
               {householdList.map(h => (
@@ -502,7 +502,7 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
               value={catatan}
               onChange={e => setCatatan(e.target.value)}
               placeholder="Catatan tambahan, kondisi khusus, dll..."
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"
             />
           </div>
         )}
