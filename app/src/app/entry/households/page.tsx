@@ -16,7 +16,7 @@ export default async function EntryHouseholdsPage() {
 
   const isSuperAdmin = appUser?.role === 'superadmin'
 
-  let allPuskesmas: any[] = []
+  let allPuskesmas: { id: string; nama: string; kecamatan: string }[] = []
   if (isSuperAdmin) {
     const { data: pkm } = await supabase.from('ref_puskesmas').select('id, nama, kecamatan').neq('nama', 'DINKES').order('nama')
     allPuskesmas = pkm || []
