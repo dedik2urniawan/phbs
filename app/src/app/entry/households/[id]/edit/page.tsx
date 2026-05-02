@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import EditHouseholdClient from '../../../dashboard/households/[id]/edit/EditHouseholdClient'
+import EditHouseholdClient from '@/app/dashboard/households/[id]/edit/EditHouseholdClient'
 
 export default async function EditEntryHouseholdPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
