@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import SurveyHistoryList from '@/components/SurveyHistoryList'
 
 export default async function EntryHouseholdDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -75,18 +76,7 @@ export default async function EntryHouseholdDetailPage({ params }: { params: Pro
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-800 mb-4">Riwayat Survei</h3>
-          {surveys && surveys.length > 0 ? (
-            <div className="space-y-3">
-              {surveys.map(s => (
-                <div key={s.id} className="p-3 border border-gray-100 rounded-xl bg-blue-50/50">
-                  <p className="font-semibold text-sm">Skor PHBS: {s.skor}</p>
-                  <p className="text-xs text-gray-500">{new Date(s.created_at).toLocaleDateString('id-ID')}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">Belum ada data survei.</p>
-          )}
+          <SurveyHistoryList surveys={surveys || []} basePath="/entry" />
         </div>
       </div>
     </div>
