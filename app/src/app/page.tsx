@@ -1,0 +1,313 @@
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'SIM-PHBS | Sistem Informasi PHBS Kabupaten Malang',
+  description: 'Platform digital survei Perilaku Hidup Bersih dan Sehat (PHBS) Kabupaten Malang. Mendukung 40 Puskesmas, 390 desa, dengan teknologi offline-first PWA.',
+}
+
+const INDICATORS = [
+  { no: 1, icon: '🤱', title: 'Persalinan Nakes', desc: 'Persalinan ditolong tenaga kesehatan terlatih' },
+  { no: 2, icon: '🍼', title: 'ASI Eksklusif', desc: 'Bayi 0-6 bulan mendapat ASI eksklusif' },
+  { no: 3, icon: '⚖️', title: 'Timbang Balita', desc: 'Penimbangan balita minimal 8x per tahun' },
+  { no: 4, icon: '💧', title: 'Air Bersih', desc: 'Menggunakan sumber air bersih yang aman' },
+  { no: 5, icon: '🧼', title: 'Cuci Tangan', desc: 'Cuci tangan pakai sabun di air mengalir' },
+  { no: 6, icon: '🚽', title: 'Jamban Sehat', desc: 'Menggunakan jamban leher angsa yang tertutup' },
+  { no: 7, icon: '🦟', title: 'PSN 3M Plus', desc: 'Pemberantasan sarang nyamuk tiap minggu' },
+  { no: 8, icon: '🥗', title: 'Sayur & Buah', desc: 'Konsumsi sayur dan buah setiap hari' },
+  { no: 9, icon: '🏃', title: 'Aktivitas Fisik', desc: 'Olahraga minimal 30 menit per hari' },
+  { no: 10, icon: '🚭', title: 'Tidak Merokok', desc: 'Tidak ada yang merokok di dalam rumah' },
+  { no: 11, icon: '🩺', title: 'Cek Kesehatan', desc: 'Pemeriksaan kesehatan minimal 2x per tahun' },
+  { no: 12, icon: '🏥', title: 'Kunjungan Posyandu', desc: 'Aktif mengunjungi Posyandu terdekat' },
+  { no: 13, icon: '👶', title: 'Peserta Posyandu', desc: 'Balita terdaftar dan aktif di Posyandu' },
+  { no: 14, icon: '🤰', title: 'Ibu Hamil', desc: 'Ibu hamil rutin periksa ke fasilitas kesehatan' },
+  { no: 15, icon: '💊', title: 'TTD Ibu Hamil', desc: 'Ibu hamil konsumsi tablet tambah darah' },
+  { no: 16, icon: '👧', title: 'Remaja Putri', desc: 'Remaja putri 12-18 tahun dalam keluarga' },
+  { no: 17, icon: '💉', title: 'TTD Remaja Putri', desc: 'Remaja putri rutin konsumsi tablet Fe' },
+]
+
+const STATS = [
+  { value: '40', label: 'Puskesmas', icon: '🏥' },
+  { value: '390', label: 'Desa/Kelurahan', icon: '🏘️' },
+  { value: '902.127', label: 'Total KK', icon: '🏠' },
+  { value: '20-28%', label: 'Target Survei/Tahun', icon: '🎯' },
+]
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen bg-white font-sans">
+
+      {/* ===== NAVBAR ===== */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white text-lg">🏥</div>
+            <div>
+              <span className="font-bold text-gray-800 text-sm">SIM-PHBS</span>
+              <p className="text-xs text-gray-400 leading-none">Kabupaten Malang</p>
+            </div>
+          </div>
+          <div className="hidden md:flex items-center gap-6 text-sm text-gray-600">
+            <a href="#tentang" className="hover:text-emerald-600 transition-colors">Tentang PHBS</a>
+            <a href="#indikator" className="hover:text-emerald-600 transition-colors">17 Indikator</a>
+            <a href="#fitur" className="hover:text-emerald-600 transition-colors">Fitur Aplikasi</a>
+          </div>
+          <div className="flex items-center gap-2">
+            <a href="/login?mode=pwa"
+              className="text-sm border border-emerald-600 text-emerald-600 px-3 py-1.5 rounded-xl hover:bg-emerald-50 transition-colors font-medium">
+              Surveyor
+            </a>
+            <a href="/login?mode=admin"
+              className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-xl hover:bg-emerald-500 transition-colors font-medium">
+              Dashboard
+            </a>
+          </div>
+        </div>
+      </nav>
+
+      {/* ===== HERO ===== */}
+      <section className="relative min-h-screen flex items-center bg-gradient-to-br from-emerald-900 via-teal-800 to-green-900 overflow-hidden pt-16">
+        {/* BG blobs */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/4 -left-32 w-96 h-96 bg-emerald-400/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-teal-400/20 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl" />
+        </div>
+
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-10"
+          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '50px 50px' }} />
+
+        <div className="relative max-w-6xl mx-auto px-6 py-20 text-center">
+          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-emerald-300 text-sm mb-8 backdrop-blur">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+            Platform Survei Digital Resmi Dinkes Kab. Malang
+          </div>
+
+          <h1 className="text-4xl md:text-6xl font-black text-white leading-tight mb-6">
+            Perilaku Hidup<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-300">
+              Bersih & Sehat
+            </span>
+          </h1>
+
+          <p className="text-lg text-white/70 max-w-2xl mx-auto mb-10">
+            Sistem digital untuk memantau, mendata, dan menganalisis capaian PHBS di 390 desa/kelurahan Kabupaten Malang.
+            Mendukung survei lapangan offline & online.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="/login?mode=pwa"
+              className="group flex items-center gap-3 bg-white text-emerald-800 px-7 py-4 rounded-2xl font-bold text-base hover:shadow-xl hover:shadow-emerald-500/30 transition-all transform hover:-translate-y-0.5">
+              <span className="text-2xl">📱</span>
+              <div className="text-left">
+                <p className="leading-none">Buka Aplikasi Survei</p>
+                <p className="text-xs text-emerald-600 font-normal mt-0.5">Untuk petugas Puskesmas</p>
+              </div>
+            </a>
+            <a href="/login?mode=admin"
+              className="group flex items-center gap-3 bg-white/10 border border-white/30 text-white px-7 py-4 rounded-2xl font-bold text-base hover:bg-white/20 transition-all backdrop-blur">
+              <span className="text-2xl">🖥️</span>
+              <div className="text-left">
+                <p className="leading-none">Dashboard Admin</p>
+                <p className="text-xs text-white/60 font-normal mt-0.5">Laporan & analisis data</p>
+              </div>
+            </a>
+          </div>
+
+          {/* Stats band */}
+          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {STATS.map(s => (
+              <div key={s.label} className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-5 text-center">
+                <span className="text-3xl">{s.icon}</span>
+                <p className="text-2xl md:text-3xl font-black text-white mt-2">{s.value}</p>
+                <p className="text-emerald-300 text-xs mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== TENTANG PHBS ===== */}
+      <section id="tentang" className="py-20 bg-gray-50">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <span className="text-emerald-600 font-semibold text-sm tracking-wide uppercase">Tentang Program</span>
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mt-3 mb-5">
+                Apa itu PHBS?
+              </h2>
+              <p className="text-gray-600 leading-relaxed mb-4">
+                <strong>Perilaku Hidup Bersih dan Sehat (PHBS)</strong> adalah sekumpulan perilaku yang dipraktikkan atas dasar kesadaran sebagai hasil pembelajaran, yang menjadikan seseorang, keluarga, kelompok atau masyarakat mampu menolong dirinya sendiri di bidang kesehatan.
+              </p>
+              <p className="text-gray-600 leading-relaxed mb-4">
+                Program ini merupakan bagian dari kebijakan <strong>Kementerian Kesehatan RI</strong> dalam upaya pencegahan penyakit berbasis perilaku. Di Kabupaten Malang, survei PHBS dilaksanakan oleh 40 Puskesmas dengan target 20-28% dari total Kepala Keluarga setiap tahunnya.
+              </p>
+              <div className="flex flex-wrap gap-3 mt-6">
+                {['Berdasarkan Permenkes RI', 'WHO Global Standards', 'SDGs Goal 3'].map(tag => (
+                  <span key={tag} className="bg-emerald-100 text-emerald-700 text-xs px-3 py-1.5 rounded-full font-medium">
+                    ✓ {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { icon: '🎯', title: 'Tujuan', desc: 'Meningkatkan derajat kesehatan masyarakat melalui perubahan perilaku hidup sehat' },
+                { icon: '📊', title: 'Metodologi', desc: 'Survei rumah tangga dengan 17 indikator terstandar berbasis Kemenkes' },
+                { icon: '🏘️', title: 'Sasaran', desc: '390 desa/kelurahan, mencakup seluruh wilayah Kabupaten Malang' },
+                { icon: '📱', title: 'Teknologi', desc: 'Aplikasi mobile offline-first untuk kemudahan petugas di lapangan' },
+              ].map(c => (
+                <div key={c.title} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                  <span className="text-3xl">{c.icon}</span>
+                  <h3 className="font-bold text-gray-800 mt-3 mb-2 text-sm">{c.title}</h3>
+                  <p className="text-gray-500 text-xs leading-relaxed">{c.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 17 INDIKATOR ===== */}
+      <section id="indikator" className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-emerald-600 font-semibold text-sm tracking-wide uppercase">Parameter Penilaian</span>
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mt-3 mb-4">17 Indikator PHBS Tatanan Rumah Tangga</h2>
+            <p className="text-gray-500 max-w-2xl mx-auto">
+              Setiap rumah tangga dinilai berdasarkan 17 indikator perilaku hidup bersih dan sehat sesuai pedoman Kementerian Kesehatan RI
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {INDICATORS.map(ind => (
+              <div key={ind.no}
+                className="group bg-gray-50 hover:bg-emerald-50 border border-gray-100 hover:border-emerald-200 rounded-2xl p-4 transition-all hover:shadow-md cursor-default">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-100 w-6 h-6 rounded-full flex items-center justify-center">{ind.no}</span>
+                  <span className="text-xl">{ind.icon}</span>
+                </div>
+                <h3 className="font-bold text-gray-800 text-sm mb-1">{ind.title}</h3>
+                <p className="text-gray-500 text-xs leading-relaxed">{ind.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Kategori PHBS */}
+          <div className="mt-12 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-8">
+            <h3 className="font-black text-gray-800 text-xl mb-6 text-center">Kategori Capaian PHBS</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Sehat Pratama', range: '< 25%', color: 'bg-red-100 text-red-700 border-red-200' },
+                { label: 'Sehat Madya', range: '25-49%', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+                { label: 'Sehat Utama', range: '50-74%', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+                { label: 'Sehat Paripurna', range: '≥ 75%', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+              ].map(k => (
+                <div key={k.label} className={`border rounded-xl p-4 text-center ${k.color}`}>
+                  <p className="font-bold text-sm">{k.label}</p>
+                  <p className="text-2xl font-black mt-1">{k.range}</p>
+                  <p className="text-xs opacity-70 mt-1">indikator terpenuhi</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== FITUR APLIKASI ===== */}
+      <section id="fitur" className="py-20 bg-gray-900 text-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-emerald-400 font-semibold text-sm tracking-wide uppercase">Platform Digital</span>
+            <h2 className="text-3xl md:text-4xl font-black mt-3 mb-4">Dua Akses, Satu Ekosistem</h2>
+            <p className="text-gray-400 max-w-xl mx-auto">
+              Dirancang untuk kebutuhan petugas lapangan dan administrator Dinas Kesehatan
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* PWA Card */}
+            <div className="bg-gradient-to-br from-emerald-700 to-teal-800 rounded-3xl p-8 border border-emerald-600/50">
+              <div className="text-5xl mb-5">📱</div>
+              <h3 className="text-2xl font-black mb-3">Aplikasi Survei</h3>
+              <p className="text-emerald-200 text-sm mb-6 leading-relaxed">
+                Dioptimalkan untuk petugas Puskesmas di lapangan. Bisa diinstal di HP dan bekerja tanpa sinyal internet.
+              </p>
+              <ul className="space-y-2 mb-8">
+                {[
+                  'Instalasi langsung ke home screen HP',
+                  'Mode offline — survei tanpa sinyal',
+                  'Auto-sync saat kembali online',
+                  'Validasi NIK otomatis dari 16 digit',
+                  'Wizard 17 indikator dengan skip logic',
+                  'Notifikasi pending data',
+                ].map(f => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-emerald-100">
+                    <span className="text-emerald-400">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+              <a href="/login?mode=pwa"
+                className="inline-flex items-center gap-2 bg-white text-emerald-800 px-5 py-3 rounded-xl font-bold text-sm hover:shadow-lg transition-all">
+                Masuk sebagai Surveyor →
+              </a>
+            </div>
+
+            {/* Dashboard Card */}
+            <div className="bg-gray-800 rounded-3xl p-8 border border-gray-700">
+              <div className="text-5xl mb-5">🖥️</div>
+              <h3 className="text-2xl font-black mb-3">Dashboard Admin</h3>
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                Untuk kepala Puskesmas dan administrator Dinas Kesehatan. Laporan lengkap dan analisis data agregat.
+              </p>
+              <ul className="space-y-2 mb-8">
+                {[
+                  'Peta capaian PHBS per desa/puskesmas',
+                  'Rekap 17 indikator dengan grafik',
+                  'Manajemen data KK & anggota keluarga',
+                  'Export laporan PDF & Excel',
+                  'Multi-level RBAC (Superadmin & PKM)',
+                  'Monitor progress survei real-time',
+                ].map(f => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-gray-300">
+                    <span className="text-emerald-400">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+              <a href="/login?mode=admin"
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all">
+                Masuk ke Dashboard →
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== FOOTER ===== */}
+      <footer className="bg-gray-950 text-gray-400 py-10">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center text-white text-sm">🏥</div>
+            <div>
+              <p className="text-white text-sm font-bold">SIM-PHBS</p>
+              <p className="text-xs text-gray-500">Sistem Informasi PHBS Kabupaten Malang</p>
+            </div>
+          </div>
+          <p className="text-xs text-center">
+            © 2026 Dinas Kesehatan Kabupaten Malang · Crafted with{' '}
+            <span className="text-red-400">♥</span> by{' '}
+            <a href="https://dedik2urniawan.github.io/" target="_blank" rel="noopener noreferrer"
+              className="text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
+              DK
+            </a>
+          </p>
+          <div className="flex gap-4 text-xs">
+            <a href="/login?mode=pwa" className="hover:text-white transition-colors">Aplikasi Survei</a>
+            <a href="/login?mode=admin" className="hover:text-white transition-colors">Dashboard</a>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  )
+}
