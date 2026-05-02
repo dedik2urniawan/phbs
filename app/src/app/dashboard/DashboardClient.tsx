@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AppUser } from '@/lib/types'
 
 interface Props {
-  user: AppUser & { ref_puskesmas?: { nama_puskesmas: string; kecamatan: string } | null }
+  user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
   totalKK: number
 }
 

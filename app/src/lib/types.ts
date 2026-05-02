@@ -11,8 +11,8 @@ export interface AppUser {
 
 export interface RefPuskesmas {
   id: string
-  kode_puskesmas: string
-  nama_puskesmas: string
+  kode: string
+  nama: string
   kecamatan: string
 }
 
