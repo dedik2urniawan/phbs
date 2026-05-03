@@ -92,7 +92,7 @@ const INDICATORS = [
 ]
 
 const STATS = [
-  { value: '40', label: 'Puskesmas', icon: '🏥' },
+  { value: '39', label: 'Puskesmas', icon: '🏥' },
   { value: '390', label: 'Desa/Kelurahan', icon: '🏘️' },
   { value: '902.127', label: 'Total KK', icon: '🏠' },
   { value: '20-28%', label: 'Target Survei/Tahun', icon: '🎯' },
@@ -212,7 +212,7 @@ export default function LandingPage() {
                 <strong>Perilaku Hidup Bersih dan Sehat (PHBS)</strong> adalah sekumpulan perilaku yang dipraktikkan atas dasar kesadaran sebagai hasil pembelajaran, yang menjadikan seseorang, keluarga, kelompok atau masyarakat mampu menolong dirinya sendiri di bidang kesehatan.
               </p>
               <p className="text-gray-600 leading-relaxed mb-4">
-                Program ini merupakan bagian dari kebijakan <strong>Kementerian Kesehatan RI</strong> dalam upaya pencegahan penyakit berbasis perilaku. Di Kabupaten Malang, survei PHBS dilaksanakan oleh 40 Puskesmas dengan target 20-28% dari total Kepala Keluarga setiap tahunnya.
+                Program ini merupakan bagian dari kebijakan <strong>Kementerian Kesehatan RI</strong> dalam upaya pencegahan penyakit berbasis perilaku. Di Kabupaten Malang, survei PHBS dilaksanakan oleh 39 Puskesmas dengan target 20-28% dari total Kepala Keluarga setiap tahunnya.
               </p>
               <div className="flex flex-wrap gap-3 mt-6">
                 {['Berdasarkan Permenkes RI', 'WHO Global Standards', 'SDGs Goal 3'].map(tag => (
