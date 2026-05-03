@@ -42,7 +42,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white text-lg">🏥</div>
             <div>
-              <span className="font-bold text-gray-800 text-sm">SIM-PHBS</span>
+              <span className="font-heading font-bold text-gray-800 text-sm tracking-wide">SIM-PHBS</span>
               <p className="text-xs text-gray-400 leading-none">Kabupaten Malang</p>
             </div>
           </div>
@@ -83,9 +83,9 @@ export default function LandingPage() {
             Platform Survei Digital Resmi Dinkes Kab. Malang
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-black text-white leading-tight mb-6">
+          <h1 className="text-5xl md:text-7xl font-heading font-black text-white leading-tight mb-6 tracking-tight">
             Perilaku Hidup<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-300">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-300 to-emerald-200">
               Bersih & Sehat
             </span>
           </h1>
@@ -97,7 +97,7 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a href="/login?mode=pwa"
-              className="group flex items-center gap-3 bg-white text-emerald-800 px-7 py-4 rounded-2xl font-bold text-base hover:shadow-xl hover:shadow-emerald-500/30 transition-all transform hover:-translate-y-0.5">
+              className="group flex items-center gap-3 bg-white text-emerald-800 px-7 py-4 rounded-2xl font-bold text-base shadow-[0_0_40px_rgba(16,185,129,0.3)] hover:shadow-[0_0_60px_rgba(16,185,129,0.5)] transition-all transform hover:-translate-y-1">
               <span className="text-2xl">📱</span>
               <div className="text-left">
                 <p className="leading-none">Buka Aplikasi Survei</p>
@@ -119,7 +119,7 @@ export default function LandingPage() {
             {STATS.map(s => (
               <div key={s.label} className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-5 text-center">
                 <span className="text-3xl">{s.icon}</span>
-                <p className="text-2xl md:text-3xl font-black text-white mt-2">{s.value}</p>
+                <p className="text-2xl md:text-4xl font-heading font-black text-white mt-3">{s.value}</p>
                 <p className="text-emerald-300 text-xs mt-1">{s.label}</p>
               </div>
             ))}
@@ -133,7 +133,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
               <span className="text-emerald-600 font-semibold text-sm tracking-wide uppercase">Tentang Program</span>
-              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mt-3 mb-5">
+              <h2 className="text-3xl md:text-4xl font-heading font-black text-gray-900 mt-3 mb-5">
                 Apa itu PHBS?
               </h2>
               <p className="text-gray-600 leading-relaxed mb-4">
@@ -159,7 +159,7 @@ export default function LandingPage() {
               ].map(c => (
                 <div key={c.title} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
                   <span className="text-3xl">{c.icon}</span>
-                  <h3 className="font-bold text-gray-800 mt-3 mb-2 text-sm">{c.title}</h3>
+                  <h3 className="font-heading font-bold text-gray-800 mt-4 mb-2 text-base">{c.title}</h3>
                   <p className="text-gray-500 text-xs leading-relaxed">{c.desc}</p>
                 </div>
               ))}
@@ -173,7 +173,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <span className="text-emerald-600 font-semibold text-sm tracking-wide uppercase">Parameter Penilaian</span>
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mt-3 mb-4">17 Indikator PHBS Tatanan Rumah Tangga</h2>
+            <h2 className="text-3xl md:text-4xl font-heading font-black text-gray-900 mt-3 mb-4">17 Indikator PHBS Tatanan Rumah Tangga</h2>
             <p className="text-gray-500 max-w-2xl mx-auto">
               Setiap rumah tangga dinilai berdasarkan 17 indikator perilaku hidup bersih dan sehat sesuai pedoman Kementerian Kesehatan RI
             </p>
@@ -182,12 +182,12 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {INDICATORS.map(ind => (
               <div key={ind.no}
-                className="group bg-gray-50 hover:bg-emerald-50 border border-gray-100 hover:border-emerald-200 rounded-2xl p-4 transition-all hover:shadow-md cursor-default">
+                className="group bg-white hover:bg-emerald-50 border border-gray-100 hover:border-emerald-300 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-default">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-100 w-6 h-6 rounded-full flex items-center justify-center">{ind.no}</span>
                   <span className="text-xl">{ind.icon}</span>
                 </div>
-                <h3 className="font-bold text-gray-800 text-sm mb-1">{ind.title}</h3>
+                <h3 className="font-heading font-bold text-gray-800 text-sm mb-2">{ind.title}</h3>
                 <p className="text-gray-500 text-xs leading-relaxed">{ind.desc}</p>
               </div>
             ))}
@@ -195,7 +195,7 @@ export default function LandingPage() {
 
           {/* Kategori PHBS */}
           <div className="mt-12 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-8">
-            <h3 className="font-black text-gray-800 text-xl mb-6 text-center">Kategori Capaian PHBS</h3>
+            <h3 className="font-heading font-black text-gray-800 text-2xl mb-8 text-center">Kategori Capaian PHBS</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: 'Sehat Pratama', range: '< 25%', color: 'bg-red-100 text-red-700 border-red-200' },
@@ -205,7 +205,7 @@ export default function LandingPage() {
               ].map(k => (
                 <div key={k.label} className={`border rounded-xl p-4 text-center ${k.color}`}>
                   <p className="font-bold text-sm">{k.label}</p>
-                  <p className="text-2xl font-black mt-1">{k.range}</p>
+                  <p className="text-3xl font-heading font-black mt-2">{k.range}</p>
                   <p className="text-xs opacity-70 mt-1">indikator terpenuhi</p>
                 </div>
               ))}
@@ -219,7 +219,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <span className="text-emerald-400 font-semibold text-sm tracking-wide uppercase">Platform Digital</span>
-            <h2 className="text-3xl md:text-4xl font-black mt-3 mb-4">Dua Akses, Satu Ekosistem</h2>
+            <h2 className="text-3xl md:text-5xl font-heading font-black mt-3 mb-5">Dua Akses, Satu Ekosistem</h2>
             <p className="text-gray-400 max-w-xl mx-auto">
               Dirancang untuk kebutuhan petugas lapangan dan administrator Dinas Kesehatan
             </p>
@@ -229,7 +229,7 @@ export default function LandingPage() {
             {/* PWA Card */}
             <div className="bg-gradient-to-br from-emerald-700 to-teal-800 rounded-3xl p-8 border border-emerald-600/50">
               <div className="text-5xl mb-5">📱</div>
-              <h3 className="text-2xl font-black mb-3">Aplikasi Survei</h3>
+              <h3 className="text-3xl font-heading font-black mb-3">Aplikasi Survei</h3>
               <p className="text-emerald-200 text-sm mb-6 leading-relaxed">
                 Dioptimalkan untuk petugas Puskesmas di lapangan. Bisa diinstal di HP dan bekerja tanpa sinyal internet.
               </p>
@@ -256,7 +256,7 @@ export default function LandingPage() {
             {/* Dashboard Card */}
             <div className="bg-gray-800 rounded-3xl p-8 border border-gray-700">
               <div className="text-5xl mb-5">🖥️</div>
-              <h3 className="text-2xl font-black mb-3">Dashboard Admin</h3>
+              <h3 className="text-3xl font-heading font-black mb-3">Dashboard Admin</h3>
               <p className="text-gray-400 text-sm mb-6 leading-relaxed">
                 Untuk kepala Puskesmas dan administrator Dinas Kesehatan. Laporan lengkap dan analisis data agregat.
               </p>

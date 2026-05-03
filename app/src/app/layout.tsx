@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Plus_Jakarta_Sans } from "next/font/google"
 import "./globals.css"
 import PWAInstallPrompt from "@/components/PWAInstallPrompt"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
+const plusJakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-plus-jakarta" })
 
 export const viewport: Viewport = {
   themeColor: '#059669',
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id" className={`${inter.variable} h-full`}>
+    <html lang="id" className={`${inter.variable} ${plusJakarta.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-gray-50 font-sans antialiased">
         {children}
         <PWAInstallPrompt />
