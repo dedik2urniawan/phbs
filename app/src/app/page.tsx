@@ -1,8 +1,74 @@
-import type { Metadata } from 'next'
+'use client'
+import { useState, useEffect, useRef } from 'react'
 
-export const metadata: Metadata = {
-  title: 'SIM-PHBS | Sistem Informasi PHBS Kabupaten Malang',
-  description: 'Platform digital survei Perilaku Hidup Bersih dan Sehat (PHBS) Kabupaten Malang. Mendukung 40 Puskesmas, 390 desa, dengan teknologi offline-first PWA.',
+function AnimatedCounter({ value, duration = 2000 }: { value: string, duration?: number }) {
+  const [displayValue, setDisplayValue] = useState('0')
+  const countRef = useRef<HTMLSpanElement>(null)
+  const [hasAnimated, setHasAnimated] = useState(false)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasAnimated) {
+          setHasAnimated(true)
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (countRef.current) observer.observe(countRef.current)
+    return () => observer.disconnect()
+  }, [hasAnimated])
+
+  useEffect(() => {
+    if (!hasAnimated) return
+
+    const isRange = value.includes('-')
+    const isPercentage = value.includes('%')
+    const cleanValue = value.replace(/[.%]/g, '')
+    
+    if (isRange) {
+      const parts = value.split('-').map(p => parseInt(p.replace(/[^0-9]/g, '')))
+      let startTimestamp: number | null = null
+      
+      const step = (timestamp: number) => {
+        if (!startTimestamp) startTimestamp = timestamp
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1)
+        
+        const v1 = Math.floor(progress * parts[0])
+        const v2 = Math.floor(progress * parts[1])
+        
+        setDisplayValue(`${v1}-${v2}${isPercentage ? '%' : ''}`)
+        
+        if (progress < 1) {
+          window.requestAnimationFrame(step)
+        }
+      }
+      window.requestAnimationFrame(step)
+    } else {
+      const target = parseInt(cleanValue)
+      let startTimestamp: number | null = null
+      
+      const step = (timestamp: number) => {
+        if (!startTimestamp) startTimestamp = timestamp
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1)
+        const current = Math.floor(progress * target)
+        
+        const formatted = value.includes('.') 
+          ? current.toLocaleString('id-ID')
+          : current.toString()
+          
+        setDisplayValue(formatted + (isPercentage ? '%' : ''))
+        
+        if (progress < 1) {
+          window.requestAnimationFrame(step)
+        }
+      }
+      window.requestAnimationFrame(step)
+    }
+  }, [hasAnimated, value, duration])
+
+  return <span ref={countRef}>{displayValue}</span>
 }
 
 const INDICATORS = [
@@ -119,7 +185,9 @@ export default function LandingPage() {
             {STATS.map(s => (
               <div key={s.label} className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-5 text-center">
                 <span className="text-3xl">{s.icon}</span>
-                <p className="text-2xl md:text-4xl font-heading font-black text-white mt-3">{s.value}</p>
+                <p className="text-2xl md:text-4xl font-heading font-black text-white mt-3">
+                  <AnimatedCounter value={s.value} />
+                </p>
                 <p className="text-emerald-300 text-xs mt-1">{s.label}</p>
               </div>
             ))}

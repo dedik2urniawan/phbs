@@ -14,8 +14,8 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "SIM-PHBS | Kabupaten Malang",
-  description: "Sistem Informasi Manajemen PHBS Kabupaten Malang",
+  title: "SIM-PHBS | Sistem Informasi PHBS Kabupaten Malang",
+  description: "Platform digital survei Perilaku Hidup Bersih dan Sehat (PHBS) Kabupaten Malang. Mendukung 40 Puskesmas, 390 desa, dengan teknologi offline-first PWA.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
