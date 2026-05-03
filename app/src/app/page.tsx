@@ -105,11 +105,15 @@ export default function LandingPage() {
       {/* ===== NAVBAR ===== */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white text-lg">🏥</div>
-            <div>
-              <span className="font-heading font-bold text-gray-800 text-sm tracking-wide">SIM-PHBS</span>
-              <p className="text-xs text-gray-400 leading-none">Kabupaten Malang</p>
+          <div className="flex items-center gap-3 md:gap-6">
+            <div className="flex items-center gap-2 md:gap-4">
+              <img src="/KAB.png" alt="Logo Kabupaten Malang" className="h-10 md:h-16 w-auto object-contain" />
+              <img src="/GERMAS.png" alt="Logo Germas" className="h-8 md:h-14 w-auto object-contain" />
+              <img src="/promkes.png" alt="Logo Promkes" className="h-9 md:h-15 w-auto object-contain" />
+            </div>
+            <div className="hidden sm:block border-l-2 border-gray-100 pl-4 md:pl-6 py-1">
+              <span className="font-heading font-black text-gray-800 text-lg md:text-xl tracking-tight block leading-none">SIM-PHBS</span>
+              <p className="text-[10px] md:text-xs text-gray-400 mt-1 md:mt-1.5 font-bold uppercase tracking-[0.2em]">Kabupaten Malang</p>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-gray-600">
@@ -117,13 +121,13 @@ export default function LandingPage() {
             <a href="#indikator" className="hover:text-emerald-600 transition-colors">17 Indikator</a>
             <a href="#fitur" className="hover:text-emerald-600 transition-colors">Fitur Aplikasi</a>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
             <a href="/login?mode=pwa"
-              className="text-sm border border-emerald-600 text-emerald-600 px-3 py-1.5 rounded-xl hover:bg-emerald-50 transition-colors font-medium">
+              className="text-xs md:text-sm border border-emerald-600 text-emerald-600 px-2 md:px-3 py-1.5 rounded-xl hover:bg-emerald-50 transition-colors font-medium whitespace-nowrap">
               Surveyor
             </a>
             <a href="/login?mode=admin"
-              className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-xl hover:bg-emerald-500 transition-colors font-medium">
+              className="text-xs md:text-sm bg-emerald-600 text-white px-2 md:px-3 py-1.5 rounded-xl hover:bg-emerald-500 transition-colors font-medium whitespace-nowrap">
               Dashboard
             </a>
           </div>
@@ -354,11 +358,15 @@ export default function LandingPage() {
       {/* ===== FOOTER ===== */}
       <footer className="bg-gray-950 text-gray-400 py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center text-white text-sm">🏥</div>
-            <div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity">
+              <img src="/KAB.png" alt="Logo Kabupaten Malang" className="h-10 w-auto brightness-0 invert" />
+              <img src="/GERMAS.png" alt="Logo Germas" className="h-8 w-auto" />
+              <img src="/promkes.png" alt="Logo Promkes" className="h-9 w-auto" />
+            </div>
+            <div className="border-l border-gray-800 pl-4">
               <p className="text-white text-sm font-bold">SIM-PHBS</p>
-              <p className="text-xs text-gray-500">Sistem Informasi PHBS Kabupaten Malang</p>
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest">Dinas Kesehatan Kab. Malang</p>
             </div>
           </div>
           <p className="text-xs text-center">

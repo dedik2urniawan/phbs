@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   title: "SIM-PHBS | Sistem Informasi PHBS Kabupaten Malang",
   description: "Platform digital survei Perilaku Hidup Bersih dan Sehat (PHBS) Kabupaten Malang. Mendukung 40 Puskesmas, 390 desa, dengan teknologi offline-first PWA.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/promkes.png?v=1" },
+      { url: "/promkes.png?v=1", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/promkes.png?v=1",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
