@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useMemo } from 'react'
+
 import { AppUser } from '@/lib/types'
 import dynamic from 'next/dynamic'
 import { 
@@ -15,6 +17,9 @@ const DynamicMap = dynamic(() => import('@/components/MapChart'), {
 
 interface Props {
   appUser: AppUser
+  surveysData?: any[]
+  puskesmasList?: any[]
+  desaList?: any[]
   dbAnalytics?: any
 }
 
@@ -77,13 +82,128 @@ const getCorrelationColor = (val: number) => {
   return 'bg-blue-200'
 }
 
-export default function ReportsClient({ appUser, dbAnalytics }: Props) {
+export default function ReportsClient({ appUser, surveysData, puskesmasList, desaList, dbAnalytics: initialDbAnalytics }: Props) {
+  const isSuperAdmin = appUser.role === 'superadmin'
+  const [selectedPuskesmas, setSelectedPuskesmas] = useState<string>(
+    isSuperAdmin ? 'all' : String(appUser.puskesmas_id)
+  )
+  const [selectedDesa, setSelectedDesa] = useState<string>('all')
+
+  const filteredDesa = useMemo(() => {
+    if (!desaList) return []
+    if (selectedPuskesmas === 'all') return desaList
+    return desaList.filter(d => String(d.puskesmas_id) === String(selectedPuskesmas))
+  }, [desaList, selectedPuskesmas])
+
+  const filteredSurveys = useMemo(() => {
+    if (!surveysData) return []
+    return surveysData.filter(s => {
+      const pId = String(s.households?.puskesmas_id)
+      const dId = String(s.households?.desa_id)
+      
+      if (selectedPuskesmas !== 'all' && pId !== selectedPuskesmas) return false
+      if (selectedDesa !== 'all' && dId !== selectedDesa) return false
+      return true
+    })
+  }, [surveysData, selectedPuskesmas, selectedDesa])
+
+  const computedAnalytics = useMemo(() => {
+    if (!filteredSurveys || filteredSurveys.length === 0) return null
+
+    const total_surveys = filteredSurveys.length;
+    let total_sehat = 0;
+    
+    const indicators: Record<string, {yes: number, no: number}> = {
+      'i1_persalinan_nakes': {yes: 0, no: 0},
+      'i2_asi_eksklusif': {yes: 0, no: 0},
+      'i3_menimbang_balita': {yes: 0, no: 0},
+      'i4_air_bersih': {yes: 0, no: 0},
+      'i5_cuci_tangan': {yes: 0, no: 0},
+      'i6_jamban_sehat': {yes: 0, no: 0},
+      'i7_psn': {yes: 0, no: 0},
+      'i8_makan_sayur_buah': {yes: 0, no: 0},
+      'i9_aktivitas_fisik': {yes: 0, no: 0},
+      'i10_tidak_merokok': {yes: 0, no: 0},
+    }
+    
+    let bumilTotal = 0, bumilYes = 0;
+    let remajaTotal = 0, remajaYes = 0;
+    const germasByDesa: Record<string, {posyandu: number, ckg: number, total: number}> = {}
+
+    filteredSurveys.forEach((s: any) => {
+      if (s.is_rt_sehat) total_sehat++;
+      
+      Object.keys(indicators).forEach(k => {
+        if (s[k] !== undefined && s[k] !== null) {
+          if (s[k]) indicators[k].yes++;
+          else indicators[k].no++;
+        }
+      })
+      
+      if (s.i14_ibu_hamil) {
+        bumilTotal++;
+        if (s.i15_ibu_hamil_ttd) bumilYes++;
+      }
+      
+      if (s.i16_remaja_putri) {
+        remajaTotal++;
+        if (s.i17_remaja_putri_ttd) remajaYes++;
+      }
+      
+      const desaName = s.households?.ref_desa?.desa_kel || 'Unknown'
+      if (!germasByDesa[desaName]) germasByDesa[desaName] = {posyandu: 0, ckg: 0, total: 0}
+      germasByDesa[desaName].total++;
+      if (s.i12_kunjungan_posyandu) germasByDesa[desaName].posyandu++;
+      if (s.i11_cek_kesehatan) germasByDesa[desaName].ckg++;
+    });
+    
+    const radar_data = [
+      { subject: 'Persalinan Nakes', A: indicators['i1_persalinan_nakes'].yes / (indicators['i1_persalinan_nakes'].yes + indicators['i1_persalinan_nakes'].no || 1) * 100, fullMark: 100 },
+      { subject: 'ASI Eksklusif', A: indicators['i2_asi_eksklusif'].yes / (indicators['i2_asi_eksklusif'].yes + indicators['i2_asi_eksklusif'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Timbang Balita', A: indicators['i3_menimbang_balita'].yes / (indicators['i3_menimbang_balita'].yes + indicators['i3_menimbang_balita'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Air Bersih', A: indicators['i4_air_bersih'].yes / (indicators['i4_air_bersih'].yes + indicators['i4_air_bersih'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Cuci Tangan', A: indicators['i5_cuci_tangan'].yes / (indicators['i5_cuci_tangan'].yes + indicators['i5_cuci_tangan'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Jamban Sehat', A: indicators['i6_jamban_sehat'].yes / (indicators['i6_jamban_sehat'].yes + indicators['i6_jamban_sehat'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Bebas Jentik', A: indicators['i7_psn'].yes / (indicators['i7_psn'].yes + indicators['i7_psn'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Makan Sayur Buah', A: indicators['i8_makan_sayur_buah'].yes / (indicators['i8_makan_sayur_buah'].yes + indicators['i8_makan_sayur_buah'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Aktivitas Fisik', A: indicators['i9_aktivitas_fisik'].yes / (indicators['i9_aktivitas_fisik'].yes + indicators['i9_aktivitas_fisik'].no || 1) * 100, fullMark: 100 },
+      { subject: 'Tidak Merokok', A: indicators['i10_tidak_merokok'].yes / (indicators['i10_tidak_merokok'].yes + indicators['i10_tidak_merokok'].no || 1) * 100, fullMark: 100 },
+    ].map(r => ({ ...r, A: Math.round(r.A) }))
+    
+    const pareto_data = radar_data.map(r => ({
+      name: r.subject,
+      failure: 100 - r.A
+    })).sort((a, b) => b.failure - a.failure) // sort by failure rate
+    
+    const germas_data = Object.keys(germasByDesa).map(d => ({
+      name: d,
+      Posyandu: Math.round((germasByDesa[d].posyandu / germasByDesa[d].total) * 100),
+      CKG: Math.round((germasByDesa[d].ckg / germasByDesa[d].total) * 100),
+    }))
+    
+    return {
+      radar_data,
+      pareto_data,
+      germas_data,
+      rentan_data: {
+        bumilTarget: 90, bumilCapaian: bumilTotal ? Math.round((bumilYes/bumilTotal)*100) : 0,
+        remajaTarget: 90, remajaCapaian: remajaTotal ? Math.round((remajaYes/remajaTotal)*100) : 0,
+      },
+      total_surveys,
+      iks_phbs: Math.round((total_sehat/total_surveys)*100),
+      total_sehat,
+      total_tidak_sehat: total_surveys - total_sehat,
+    }
+  }, [filteredSurveys])
+
+  const dbAnalytics = computedAnalytics || initialDbAnalytics
+
   // Use DB data if available, otherwise fallback to mock
   const dataRadar = dbAnalytics?.radar_data || MOCK_radarData;
   
   // Sort pareto data by highest failure
   const rawPareto = dbAnalytics?.pareto_data || paretoData;
-  const dataPareto = [...rawPareto].sort((a, b) => b.failure - a.failure).slice(0, 5); // top 5 bottlenecks
+  const dataPareto = [...rawPareto].sort((a: any, b: any) => b.failure - a.failure).slice(0, 5); // top 5 bottlenecks
   
   const dataGermas = dbAnalytics?.germas_data?.length > 0 ? dbAnalytics.germas_data : germasData;
   const dataRentan = dbAnalytics?.rentan_data || rentanData;
@@ -101,6 +221,46 @@ export default function ReportsClient({ appUser, dbAnalytics }: Props) {
   return (
     <div className="space-y-6">
       
+      {/* Filters */}
+      {(puskesmasList || desaList) && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
+          {isSuperAdmin && puskesmasList && (
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Puskesmas</label>
+              <select
+                value={selectedPuskesmas}
+                onChange={(e) => {
+                  setSelectedPuskesmas(e.target.value)
+                  setSelectedDesa('all')
+                }}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2.5 transition-colors"
+              >
+                <option value="all">Semua Puskesmas</option>
+                {puskesmasList.map(p => (
+                  <option key={p.id} value={p.id}>{p.nama}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          {desaList && (
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Desa / Kelurahan</label>
+              <select
+                value={selectedDesa}
+                onChange={(e) => setSelectedDesa(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2.5 transition-colors"
+              >
+                <option value="all">Semua Desa</option>
+                {filteredDesa.map(d => (
+                  <option key={d.id} value={d.id}>{d.desa_kel}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 1. Top Row: Executive Summary KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">

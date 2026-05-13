@@ -4,9 +4,16 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { offlineDB, nowISO } from '@/lib/db/offline'
+import { offlineDB, nowISO, LocalFamilyMember, generateLocalId } from '@/lib/db/offline'
 import { enqueueSync } from '@/lib/db/sync'
 import SyncStatusBar from '@/components/SyncStatusBar'
+import {
+  hitungSkorPHBS,
+  getARTQuestions,
+  hitungUsia,
+  ArtResponse,
+  SurveyIndikator,
+} from '@/lib/phbs/scoring'
 
 // ===== TYPES =====
 interface Household {
@@ -21,7 +28,7 @@ interface Survey {
   id: string
   household_id: string
   catatan: string | null
-  [key: string]: any
+  [key: string]: unknown
 }
 interface Props {
   appUser: AppUser
@@ -30,233 +37,329 @@ interface Props {
   basePath?: string
 }
 
-// ===== 17 INDIKATOR GROUPS =====
-const INDIKATOR_GROUPS = [
-  {
-    group: 'Kesehatan Ibu & Anak', icon: '👶',
-    items: [
-      { key: 'i1_persalinan_nakes', label: 'Persalinan oleh Tenaga Kesehatan', desc: 'Apakah persalinan terakhir ditolong oleh tenaga kesehatan?', skipIf: 'noBalita', skipLabel: 'Tidak ada ibu yang melahirkan dalam 5 tahun terakhir' },
-      { key: 'i2_asi_eksklusif', label: 'ASI Eksklusif', desc: 'Apakah bayi (0-6 bulan) mendapat ASI eksklusif?', skipIf: 'noBayi', skipLabel: 'Tidak ada bayi 0-6 bulan' },
-      { key: 'i3_menimbang_balita', label: 'Menimbang Balita', desc: 'Apakah balita ditimbang minimal 8x dalam setahun di Posyandu?', skipIf: 'noBalita', skipLabel: 'Tidak ada balita (0-59 bulan)' },
-    ],
-  },
-  {
-    group: 'Kesehatan Lingkungan', icon: '🌿',
-    items: [
-      { key: 'i4_air_bersih', label: 'Menggunakan Air Bersih', desc: 'Apakah keluarga menggunakan sumber air bersih?', skipIf: null, skipLabel: null },
-      { key: 'i5_cuci_tangan', label: 'Cuci Tangan dengan Sabun', desc: 'Apakah anggota keluarga mencuci tangan dengan sabun di air mengalir?', skipIf: null, skipLabel: null },
-      { key: 'i6_jamban_sehat', label: 'Menggunakan Jamban Sehat', desc: 'Apakah keluarga menggunakan jamban sehat?', skipIf: null, skipLabel: null },
-      { key: 'i7_psn', label: 'Pemberantasan Sarang Nyamuk (PSN)', desc: 'Apakah dilakukan PSN minimal seminggu sekali (3M Plus)?', skipIf: null, skipLabel: null },
-    ],
-  },
-  {
-    group: 'Gizi & Aktivitas Fisik', icon: '🥗',
-    items: [
-      { key: 'i8_makan_sayur_buah', label: 'Makan Sayur dan Buah', desc: 'Apakah anggota keluarga makan sayur dan/atau buah setiap hari?', skipIf: null, skipLabel: null },
-      { key: 'i9_aktivitas_fisik', label: 'Aktivitas Fisik', desc: 'Apakah anggota keluarga melakukan aktivitas fisik minimal 30 menit per hari?', skipIf: null, skipLabel: null },
-    ],
-  },
-  {
-    group: 'Perilaku Sehat', icon: '🚭',
-    items: [
-      { key: 'i10_tidak_merokok', label: 'Tidak Merokok di Dalam Rumah', desc: 'Apakah tidak ada anggota keluarga yang merokok di dalam rumah?', skipIf: null, skipLabel: null },
-      { key: 'i11_cek_kesehatan', label: 'Cek Kesehatan Berkala', desc: 'Apakah anggota keluarga melakukan pemeriksaan kesehatan minimal 1x dalam 6 bulan?', skipIf: null, skipLabel: null },
-      { key: 'i12_kunjungan_posyandu', label: 'Kunjungan Posyandu', desc: 'Apakah ada anggota keluarga yang aktif berkunjung ke Posyandu?', skipIf: null, skipLabel: null },
-    ],
-  },
-  {
-    group: 'Kesehatan Ibu Hamil', icon: '🤰',
-    items: [
-      { key: 'i14_ibu_hamil', label: 'Ada Ibu Hamil', desc: 'Apakah ada anggota keluarga yang sedang hamil?', skipIf: null, skipLabel: null },
-      { key: 'i15_ibu_hamil_ttd', label: 'Ibu Hamil Konsumsi TTD', desc: 'Apakah ibu hamil rutin mengonsumsi Tablet Tambah Darah (TTD)?', skipIf: 'noIbuHamil', skipLabel: 'Tidak ada ibu hamil' },
-    ],
-  },
-  {
-    group: 'Remaja Putri', icon: '👧',
-    items: [
-      { key: 'i16_remaja_putri', label: 'Ada Remaja Putri (12-18 th)', desc: 'Apakah ada remaja putri usia 12-18 tahun dalam keluarga?', skipIf: null, skipLabel: null },
-      { key: 'i17_remaja_putri_ttd', label: 'Remaja Putri Konsumsi TTD', desc: 'Apakah remaja putri rutin mengonsumsi Tablet Tambah Darah (TTD)?', skipIf: 'noRemajaP', skipLabel: 'Tidak ada remaja putri' },
-    ],
-  },
-]
-
-type IndikatorValues = Record<string, boolean | null>
-type SkipFlags = { noBalita: boolean; noBayi: boolean; noIbuHamil: boolean; noRemajaP: boolean }
+// ===== HELPER =====
+const renderBinaryQuestion = (
+  label: string,
+  desc: string,
+  val: boolean | undefined,
+  onChange: (v: boolean) => void
+) => (
+  <div className={`rounded-xl p-4 border transition-all mb-4 ${
+    val === true ? 'bg-emerald-50 border-emerald-200'
+    : val === false ? 'bg-red-50 border-red-200'
+    : 'bg-white border-gray-100'
+  }`}>
+    <p className="text-sm font-semibold text-gray-800 mb-1">{label}</p>
+    {desc && <p className="text-xs text-gray-500 mb-3">{desc}</p>}
+    <div className="flex gap-2">
+      <button type="button" onClick={() => onChange(true)}
+        className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${
+          val === true ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+        }`}>✅ Ya</button>
+      <button type="button" onClick={() => onChange(false)}
+        className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${
+          val === false ? 'bg-red-500 text-white border-red-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+        }`}>❌ Tidak</button>
+    </div>
+  </div>
+)
 
 export default function EditSurveyClient({ appUser, survey, household, basePath = '/dashboard' }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
-  const [groupIdx, setGroupIdx] = useState(0)
-  const [values, setValues] = useState<IndikatorValues>({})
-  const [skipFlags, setSkipFlags] = useState<SkipFlags>({ noBalita: false, noBayi: false, noIbuHamil: false, noRemajaP: false })
+  const [members, setMembers] = useState<LocalFamilyMember[]>([])
+  const [step, setStep] = useState(0)
+  const [surveyKK, setSurveyKK] = useState<Partial<SurveyIndikator>>({})
+  const [artResponses, setArtResponses] = useState<Record<string, Partial<ArtResponse>>>({})
   const [catatan, setCatatan] = useState(survey.catatan || '')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [scoreResult, setScoreResult] = useState<ReturnType<typeof hitungSkorPHBS> | null>(null)
 
-  // Initialize values
+  // Load ART members + prefill existing survey values
   useEffect(() => {
-    const initVals: IndikatorValues = {}
-    let skips: SkipFlags = { noBalita: false, noBayi: false, noIbuHamil: false, noRemajaP: false }
-    
-    // Auto detect skips from nulls if the dependent trigger was false
-    skips.noIbuHamil = survey.i14_ibu_hamil === false
-    skips.noRemajaP = survey.i16_remaja_putri === false
-    // For noBalita and noBayi, we just guess based on whether the dependent values are null
-    skips.noBalita = survey.i1_persalinan_nakes === null && survey.i3_menimbang_balita === null
-    skips.noBayi = survey.i2_asi_eksklusif === null
+    async function load() {
+      let m = await offlineDB.family_members.where('household_id').equals(household.id).toArray()
+      if (m.length === 0 && navigator.onLine) {
+        const { data } = await supabase.from('family_members').select('*').eq('household_id', household.id)
+        if (data) {
+          m = data as LocalFamilyMember[]
+          await offlineDB.family_members.bulkPut(m)
+        }
+      }
+      setMembers(m)
 
-    INDIKATOR_GROUPS.forEach(g => {
-      g.items.forEach(item => {
-        initVals[item.key] = survey[item.key] ?? null
+      // Pre-fill KK indicators from existing survey
+      setSurveyKK({
+        i1_persalinan_nakes: survey.i1_persalinan_nakes as boolean | null ?? null,
+        i2_asi_eksklusif: survey.i2_asi_eksklusif as boolean | null ?? null,
+        i3_menimbang_balita: survey.i3_menimbang_balita as boolean | null ?? null,
+        i4_air_bersih: (survey.i4_air_bersih as boolean) ?? false,
+        i6_jamban_sehat: (survey.i6_jamban_sehat as boolean) ?? false,
+        i7_psn: (survey.i7_psn as boolean) ?? false,
+        i14_ibu_hamil: (survey.i14_ibu_hamil as boolean) ?? false,
+        i15_ibu_hamil_ttd: survey.i15_ibu_hamil_ttd as boolean | null ?? null,
+        i16_remaja_putri: (survey.i16_remaja_putri as boolean) ?? false,
       })
-    })
 
-    setValues(initVals)
-    setSkipFlags(skips)
-  }, [survey])
+      // Try to load existing ART responses
+      let existingArt: Record<string, Partial<ArtResponse>> = {}
+      try {
+        let artRows = await offlineDB.survey_art_responses.where('survey_id').equals(survey.id).toArray()
+        
+        if (artRows.length === 0 && navigator.onLine) {
+          const { data } = await supabase.from('survey_art_responses').select('*').eq('survey_id', survey.id)
+          if (data && data.length > 0) {
+            artRows = data as any[]
+            await offlineDB.survey_art_responses.bulkPut(artRows.map(r => ({ ...r, sync_status: 'synced' })))
+          }
+        }
+        
+        if (artRows.length > 0) {
+          artRows.forEach(r => {
+            existingArt[r.family_member_id] = {
+              id: r.id, // KEEP ID
+              family_member_id: r.family_member_id,
+              i5_cuci_tangan: r.i5_cuci_tangan ?? undefined,
+              i8_makan_sayur_buah: r.i8_makan_sayur_buah ?? undefined,
+              i9_aktivitas_fisik: r.i9_aktivitas_fisik ?? undefined,
+              i10_tidak_merokok: r.i10_tidak_merokok ?? undefined,
+              g_cek_kesehatan: r.g_cek_kesehatan ?? undefined,
+              g_posyandu_hadir: r.g_posyandu_hadir ?? undefined,
+            }
+          })
+        }
+      } catch (_) {}
 
-  const currentGroup = INDIKATOR_GROUPS[groupIdx]
-  const totalGroups = INDIKATOR_GROUPS.length
-  const progress = Math.round(((groupIdx) / totalGroups) * 100)
+      // Init blank for members without existing responses
+      const initArt: Record<string, Partial<ArtResponse>> = {}
+      m.forEach(mem => {
+        initArt[mem.id] = existingArt[mem.id] ?? { family_member_id: mem.id }
+      })
+      setArtResponses(initArt)
+    }
+    load()
+  }, [household.id, survey.id])
 
-  function setAnswer(key: string, val: boolean | null) {
-    setValues(prev => ({ ...prev, [key]: val }))
-    if (key === 'i14_ibu_hamil') setSkipFlags(p => ({ ...p, noIbuHamil: val === false }))
-    if (key === 'i16_remaja_putri') setSkipFlags(p => ({ ...p, noRemajaP: val === false }))
-  }
+  const hasBalita = members.some(m => hitungUsia(m.tgl_lahir) < 5)
+  const hasBayi = members.some(m => hitungUsia(m.tgl_lahir) === 0)
+  const hasIbuHamil = surveyKK.i14_ibu_hamil === true
+  const hasRemajaP = members.some(m => {
+    const u = hitungUsia(m.tgl_lahir)
+    return m.jenis_kelamin === 'P' && u >= 12 && u <= 18
+  })
 
-  function isSkipped(item: typeof INDIKATOR_GROUPS[0]['items'][0]): boolean {
-    if (!item.skipIf) return false
-    return skipFlags[item.skipIf as keyof SkipFlags]
-  }
+  const totalSteps = members.length > 0 ? members.length + 2 : 2
+  const progress = Math.round((step / (totalSteps - 1)) * 100)
 
-  function allAnswered(): boolean {
-    return currentGroup.items.every(item => {
-      if (isSkipped(item)) return true
-      return values[item.key] !== undefined && values[item.key] !== null
-    })
+  const isStepValid = () => {
+    if (step === 0) {
+      const reqKeys: (keyof SurveyIndikator)[] = ['i4_air_bersih', 'i6_jamban_sehat', 'i7_psn']
+      if (hasBalita) { reqKeys.push('i1_persalinan_nakes', 'i3_menimbang_balita') }
+      if (hasBayi) reqKeys.push('i2_asi_eksklusif')
+      reqKeys.push('i14_ibu_hamil')
+      if (hasIbuHamil) reqKeys.push('i15_ibu_hamil_ttd')
+      return reqKeys.every(k => surveyKK[k] !== undefined && surveyKK[k] !== null)
+    }
+    if (step > 0 && step <= members.length) {
+      const m = members[step - 1]
+      const q = getARTQuestions(hitungUsia(m.tgl_lahir), m.jenis_kelamin)
+      const r = artResponses[m.id]
+      if (!r) return false
+      if (q.show_i5 && r.i5_cuci_tangan === undefined) return false
+      if (q.show_i8 && r.i8_makan_sayur_buah === undefined) return false
+      if (q.show_i9 && r.i9_aktivitas_fisik === undefined) return false
+      if (q.show_i10 && r.i10_tidak_merokok === undefined) return false
+      if (q.show_ckg && r.g_cek_kesehatan === undefined) return false
+      if (q.show_posyandu && r.g_posyandu_hadir === undefined) return false
+      return true
+    }
+    return true
   }
 
   async function handleSubmit() {
     setSubmitting(true)
     setError('')
 
+    const surveyData: SurveyIndikator = {
+      i1_persalinan_nakes: hasBalita ? (surveyKK.i1_persalinan_nakes ?? null) : null,
+      i2_asi_eksklusif: hasBayi ? (surveyKK.i2_asi_eksklusif ?? null) : null,
+      i3_menimbang_balita: hasBalita ? (surveyKK.i3_menimbang_balita ?? null) : null,
+      i4_air_bersih: surveyKK.i4_air_bersih ?? false,
+      i6_jamban_sehat: surveyKK.i6_jamban_sehat ?? false,
+      i7_psn: surveyKK.i7_psn ?? false,
+      i14_ibu_hamil: surveyKK.i14_ibu_hamil ?? false,
+      i15_ibu_hamil_ttd: hasIbuHamil ? (surveyKK.i15_ibu_hamil_ttd ?? null) : null,
+      i16_remaja_putri: hasRemajaP,
+    }
+
+    const artList = Object.values(artResponses) as ArtResponse[]
+    const score = hitungSkorPHBS(surveyData, artList)
+    setScoreResult(score)
+
+    // Aggregate computed columns for backward compatibility
+    const i5 = artList.filter(a => a.i5_cuci_tangan !== null).some(a => a.i5_cuci_tangan)
+    const i8 = artList.filter(a => a.i8_makan_sayur_buah !== null).some(a => a.i8_makan_sayur_buah)
+    const i9 = artList.filter(a => a.i9_aktivitas_fisik !== null).some(a => a.i9_aktivitas_fisik)
+    const i10 = !artList.some(a => a.i10_tidak_merokok === false)
+    const i11 = artList.some(a => a.g_cek_kesehatan === true)
+    const i12 = artList.some(a => a.g_posyandu_hadir === true)
+
     const now = nowISO()
-
-    let total = 0; let max = 0;
-    
-    const boolKeys = ['i4_air_bersih','i5_cuci_tangan','i6_jamban_sehat','i7_psn',
-      'i8_makan_sayur_buah','i9_aktivitas_fisik','i10_tidak_merokok','i11_cek_kesehatan',
-      'i12_kunjungan_posyandu','i14_ibu_hamil','i16_remaja_putri']
-    const nullableKeys = ['i1_persalinan_nakes','i2_asi_eksklusif','i3_menimbang_balita',
-      'i15_ibu_hamil_ttd','i17_remaja_putri_ttd']
-
-    boolKeys.forEach(k => { max++; if (values[k]) total++ })
-    nullableKeys.forEach(k => { 
-      const item = INDIKATOR_GROUPS.flatMap(g => g.items).find(i => i.key === k)
-      if (item && !isSkipped(item)) { max++; if (values[k]) total++ } 
-    })
-    const skor = max > 0 ? Math.round((total/max)*100) : 0
-
     const record = {
-      i1_persalinan_nakes: skipFlags.noBalita ? null : (values['i1_persalinan_nakes'] ?? null),
-      i2_asi_eksklusif: skipFlags.noBayi ? null : (values['i2_asi_eksklusif'] ?? null),
-      i3_menimbang_balita: skipFlags.noBalita ? null : (values['i3_menimbang_balita'] ?? null),
-      i4_air_bersih: values['i4_air_bersih'] ?? false,
-      i5_cuci_tangan: values['i5_cuci_tangan'] ?? false,
-      i6_jamban_sehat: values['i6_jamban_sehat'] ?? false,
-      i7_psn: values['i7_psn'] ?? false,
-      i8_makan_sayur_buah: values['i8_makan_sayur_buah'] ?? false,
-      i9_aktivitas_fisik: values['i9_aktivitas_fisik'] ?? false,
-      i10_tidak_merokok: values['i10_tidak_merokok'] ?? false,
-      i11_cek_kesehatan: values['i11_cek_kesehatan'] ?? false,
-      i12_kunjungan_posyandu: values['i12_kunjungan_posyandu'] ?? false,
-      i14_ibu_hamil: values['i14_ibu_hamil'] ?? false,
-      i15_ibu_hamil_ttd: skipFlags.noIbuHamil ? null : (values['i15_ibu_hamil_ttd'] ?? null),
-      i16_remaja_putri: values['i16_remaja_putri'] ?? false,
-      i17_remaja_putri_ttd: skipFlags.noRemajaP ? null : (values['i17_remaja_putri_ttd'] ?? null),
-      skor,
+      ...surveyData,
+      i5_cuci_tangan: i5,
+      i8_makan_sayur_buah: i8,
+      i9_aktivitas_fisik: i9,
+      i10_tidak_merokok: i10,
+      i11_cek_kesehatan: i11,
+      i12_kunjungan_posyandu: i12,
+      i15_ibu_hamil_ttd: hasIbuHamil ? (surveyKK.i15_ibu_hamil_ttd ?? null) : null,
+      i17_remaja_putri_ttd: null,
+      skor_phbs: score.skor,
+      denominator_phbs: score.denominator,
+      is_rt_sehat: score.is_rt_sehat,
+      kategori_phbs: score.kategori,
       catatan: catatan || null,
       updated_at: now,
     }
 
     try {
+      // 1. Prepare ART payload
+      const artRecordsToSave = artList.map(art => {
+        const artRecord = {
+          id: art.id || generateLocalId(),
+          survey_id: survey.id,
+          family_member_id: art.family_member_id,
+          i5_cuci_tangan: art.i5_cuci_tangan ?? null,
+          i8_makan_sayur_buah: art.i8_makan_sayur_buah ?? null,
+          i9_aktivitas_fisik: art.i9_aktivitas_fisik ?? null,
+          i10_tidak_merokok: art.i10_tidak_merokok ?? null,
+          g_cek_kesehatan: art.g_cek_kesehatan ?? null,
+          g_posyandu_hadir: art.g_posyandu_hadir ?? null,
+          created_at: now,
+          updated_at: now,
+        }
+        return artRecord
+      })
+
+      // 2. Save offline directly
+      const exists = await offlineDB.surveys.get(survey.id)
+      if (exists) {
+        try { await offlineDB.surveys.update(survey.id, record as any) } catch (_) {}
+      }
+      for (const artRecord of artRecordsToSave) {
+        try { await offlineDB.survey_art_responses.put({ ...artRecord, sync_status: 'pending' }) } catch (_) {}
+      }
+
+      // 3. Try to sync server if online
       if (navigator.onLine) {
         const { error: sbErr } = await supabase.from('surveys').update(record).eq('id', survey.id)
+        
         if (!sbErr) {
-          try { await offlineDB.surveys.update(survey.id, record) } catch (e) {}
+          if (exists) await offlineDB.surveys.update(survey.id, { sync_status: 'synced' } as any)
+          
+          for (const artRecord of artRecordsToSave) {
+            const { error: artErr } = await supabase.from('survey_art_responses')
+              .upsert({ ...artRecord }, { onConflict: 'survey_id,family_member_id' })
+            if (!artErr) {
+               await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
+            } else {
+               await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
+            }
+          }
         } else {
-          throw sbErr
+          // If update survey fails, we need to enqueue it
+          if (exists) {
+            await offlineDB.surveys.update(survey.id, { sync_status: 'pending' } as any)
+            await enqueueSync('surveys', survey.id, 'update', record)
+            for (const artRecord of artRecordsToSave) {
+              await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
+            }
+          } else {
+            throw sbErr // fallback error if we can't queue offline
+          }
         }
       } else {
-        const exists = await offlineDB.surveys.get(survey.id)
+        // Offline logic
         if (exists) {
-          await offlineDB.surveys.update(survey.id, { ...record, sync_status: 'pending' })
+          await offlineDB.surveys.update(survey.id, { sync_status: 'pending' } as any)
           await enqueueSync('surveys', survey.id, 'update', record)
+          for (const artRecord of artRecordsToSave) {
+             await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
+          }
         } else {
           setError('Anda sedang offline dan data survei ini tidak ada di lokal.')
           setSubmitting(false)
           return
         }
       }
+
       setDone(true)
-    } catch (e: any) {
-      setError(e.message || 'Gagal menyimpan perubahan')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Gagal menyimpan perubahan')
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (done) {
-    const boolKeys = ['i4_air_bersih','i5_cuci_tangan','i6_jamban_sehat','i7_psn',
-      'i8_makan_sayur_buah','i9_aktivitas_fisik','i10_tidak_merokok','i11_cek_kesehatan',
-      'i12_kunjungan_posyandu','i14_ibu_hamil','i16_remaja_putri']
-    const nullableKeys = ['i1_persalinan_nakes','i2_asi_eksklusif','i3_menimbang_balita',
-      'i15_ibu_hamil_ttd','i17_remaja_putri_ttd']
-    let total = 0; let max = 0
-    boolKeys.forEach(k => { max++; if (values[k]) total++ })
-    nullableKeys.forEach(k => { 
-      const item = INDIKATOR_GROUPS.flatMap(g => g.items).find(i => i.key === k)
-      if (item && !isSkipped(item)) { max++; if (values[k]) total++ } 
-    })
-    const pct = max > 0 ? Math.round((total/max)*100) : 0
-    const kategori = pct >= 75 ? 'Sehat Paripurna' : pct >= 50 ? 'Sehat Utama' : pct >= 25 ? 'Sehat Madya' : 'Sehat Pratama'
-
+  // ===== DONE SCREEN =====
+  if (done && scoreResult) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-xl text-center max-w-lg w-full">
           <div className="text-6xl mb-4">✅</div>
           <h2 className="text-2xl font-black text-gray-800 mb-1">Perubahan Disimpan!</h2>
-          <p className="text-gray-500 text-sm mb-6 font-medium">Survei untuk Keluarga {household.nama_kk} berhasil diperbarui.</p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <p className="text-gray-500 text-sm mb-6 font-medium">Survei Keluarga {household.nama_kk} berhasil diperbarui.</p>
+
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 rounded-2xl p-5 text-center">
-              <p className="text-4xl font-black text-gray-800">{total}<span className="text-lg text-gray-400">/{max}</span></p>
+              <p className="text-4xl font-black text-gray-800">
+                {scoreResult.skor}<span className="text-lg text-gray-400">/{scoreResult.denominator}</span>
+              </p>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mt-1">Skor Indikator</p>
             </div>
             <div className={`rounded-2xl p-5 text-center border flex flex-col justify-center ${
-              pct >= 75 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 
-              pct >= 50 ? 'bg-blue-50 border-blue-100 text-blue-700' :
-              'bg-red-50 border-red-100 text-red-700'
+              scoreResult.is_rt_sehat
+                ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                : 'bg-red-50 border-red-100 text-red-700'
             }`}>
-              <p className="text-lg font-black leading-tight">{kategori}</p>
+              <p className="text-lg font-black leading-tight">{scoreResult.kategori}</p>
+              <p className="text-[10px] uppercase tracking-wide font-bold opacity-60 mt-1">Klasifikasi PHBS</p>
             </div>
           </div>
-          <div className="mt-8">
-            <button onClick={() => router.push(`${basePath}/households/${household.id}`)}
-              className="w-full bg-emerald-600 text-white py-3 rounded-2xl text-sm font-bold hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-200">
-              Kembali ke Detail KK
-            </button>
-          </div>
+
+          {scoreResult.failed_indicators.length > 0 && (
+            <div className="mb-6 text-left">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">⚠️ Indikator Belum Terpenuhi:</p>
+              <div className="space-y-2">
+                {scoreResult.failed_indicators.map((label: string) => (
+                  <div key={label} className="bg-red-50 text-red-700 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => router.push(`${basePath}/households/${household.id}`)}
+            className="w-full bg-emerald-600 text-white py-3 rounded-2xl text-sm font-bold hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-200"
+          >
+            Kembali ke Detail KK
+          </button>
         </div>
       </div>
     )
   }
 
+  // ===== MAIN WIZARD =====
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
+      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href={`${basePath}/households/${household.id}`} className="text-gray-400 hover:text-gray-600">
@@ -272,110 +375,146 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
         <SyncStatusBar />
       </div>
 
+      {/* Progress Bar */}
       <div className="bg-white border-b border-gray-100">
         <div className="h-1 bg-gray-100">
           <div className="h-1 bg-emerald-500 transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
         <div className="px-6 py-2 flex items-center justify-between text-xs text-gray-400">
-          <span>Kelompok {groupIdx + 1} dari {totalGroups}</span>
+          <span>Langkah {step + 1} dari {totalSteps}</span>
           <span>{progress}% selesai</span>
         </div>
       </div>
 
       <div className="p-6 max-w-2xl mx-auto">
-        {groupIdx === 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
-            <p className="text-blue-800 text-sm font-medium mb-3">📋 Komposisi Keluarga (Filter)</p>
-            <div className="space-y-2">
-              {[
-                { flag: 'noBalita', label: 'Tidak ada bayi/balita (0-59 bulan) & ibu melahirkan' },
-                { flag: 'noBayi', label: 'Tidak ada bayi 0-6 bulan' },
-              ].map(({ flag, label }) => (
-                <label key={flag} className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={skipFlags[flag as keyof SkipFlags]}
-                    onChange={e => setSkipFlags(p => ({ ...p, [flag]: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-600" />
-                  <span className="text-sm text-blue-700">{label}</span>
-                </label>
-              ))}
-            </div>
+        {/* Household Info */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mb-5 flex items-center gap-3">
+          <span className="text-emerald-600">🏠</span>
+          <div>
+            <p className="text-emerald-800 font-medium text-sm">{household.nama_kk}</p>
+            <p className="text-emerald-600 text-xs">{household.no_kk} · {household.ref_desa?.desa_kel}</p>
+          </div>
+        </div>
+
+        {members.length === 0 && (
+          <div className="bg-blue-50 text-blue-700 p-4 rounded-xl text-sm mb-5">
+            Loading data anggota keluarga...
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm mb-5">
-          <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
-            <span className="text-2xl">{currentGroup.icon}</span>
-            {currentGroup.group}
-          </h2>
+        {members.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm mb-5">
+            {/* Step 0: KK-level questions */}
+            {step === 0 && (
+              <>
+                <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
+                  <span className="text-2xl">📋</span> Pertanyaan Level Rumah Tangga
+                </h2>
+                {renderBinaryQuestion('Menggunakan Air Bersih', 'Apakah keluarga menggunakan sumber air bersih?',
+                  surveyKK.i4_air_bersih, v => setSurveyKK(p => ({ ...p, i4_air_bersih: v })))}
+                {renderBinaryQuestion('Menggunakan Jamban Sehat', 'Apakah keluarga menggunakan jamban sehat leher angsa?',
+                  surveyKK.i6_jamban_sehat, v => setSurveyKK(p => ({ ...p, i6_jamban_sehat: v })))}
+                {renderBinaryQuestion('PSN 3M Plus', 'Apakah dilakukan PSN minimal seminggu sekali?',
+                  surveyKK.i7_psn, v => setSurveyKK(p => ({ ...p, i7_psn: v })))}
+                {hasBalita && renderBinaryQuestion('Persalinan oleh Tenaga Kesehatan', 'Apakah persalinan terakhir ditolong tenaga kesehatan?',
+                  surveyKK.i1_persalinan_nakes as boolean | undefined, v => setSurveyKK(p => ({ ...p, i1_persalinan_nakes: v })))}
+                {hasBayi && renderBinaryQuestion('ASI Eksklusif', 'Apakah bayi (0-6 bulan) mendapat ASI eksklusif?',
+                  surveyKK.i2_asi_eksklusif as boolean | undefined, v => setSurveyKK(p => ({ ...p, i2_asi_eksklusif: v })))}
+                {hasBalita && renderBinaryQuestion('Menimbang Balita', 'Apakah balita ditimbang minimal 8x dalam setahun?',
+                  surveyKK.i3_menimbang_balita as boolean | undefined, v => setSurveyKK(p => ({ ...p, i3_menimbang_balita: v })))}
+                {renderBinaryQuestion('Ada Ibu Hamil', 'Apakah ada anggota keluarga yang sedang hamil?',
+                  surveyKK.i14_ibu_hamil ?? undefined, v => setSurveyKK(p => ({ ...p, i14_ibu_hamil: v })))}
+                {hasIbuHamil && renderBinaryQuestion('Ibu Hamil Konsumsi TTD', 'Apakah ibu hamil rutin mengonsumsi TTD?',
+                  (surveyKK.i15_ibu_hamil_ttd ?? undefined) as boolean | undefined, v => setSurveyKK(p => ({ ...p, i15_ibu_hamil_ttd: v })))}
+              </>
+            )}
 
-          <div className="space-y-5">
-            {currentGroup.items.map(item => {
-              const skipped = isSkipped(item)
-              const val = values[item.key]
-
+            {/* Steps 1..N: per-ART */}
+            {step > 0 && step <= members.length && (() => {
+              const m = members[step - 1]
+              const u = hitungUsia(m.tgl_lahir)
+              const q = getARTQuestions(u, m.jenis_kelamin)
+              const r = artResponses[m.id] ?? {}
+              const updateArt = (key: keyof ArtResponse, val: boolean) => {
+                setArtResponses(prev => ({ ...prev, [m.id]: { ...prev[m.id], [key]: val } }))
+              }
               return (
-                <div key={item.key} className={`rounded-xl p-4 border transition-all ${
-                  skipped ? 'bg-gray-50 border-gray-100 opacity-50' :
-                  val === true ? 'bg-emerald-50 border-emerald-200' :
-                  val === false ? 'bg-red-50 border-red-200' :
-                  'bg-white border-gray-100'
-                }`}>
-                  <p className="text-sm font-semibold text-gray-800 mb-1">{item.label}</p>
-                  <p className="text-xs text-gray-500 mb-3">{item.desc}</p>
-                  {skipped ? (
-                    <p className="text-xs text-gray-400 italic">⤷ {item.skipLabel}</p>
-                  ) : (
-                    <div className="flex gap-2">
-                      {[
-                        { v: true, label: '✅ Ya' },
-                        { v: false, label: '❌ Tidak' },
-                      ].map(({ v, label }) => (
-                        <button key={String(v)} type="button" onClick={() => setAnswer(item.key, v)}
-                          className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                            val === v
-                              ? v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-red-500 text-white border-red-500'
-                              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                          }`}>
-                          {label}
-                        </button>
-                      ))}
+                <>
+                  <div className="flex items-center gap-3 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-xl font-bold text-emerald-700">
+                      {m.nama.charAt(0)}
                     </div>
-                  )}
-                </div>
+                    <div>
+                      <h2 className="text-base font-bold text-gray-800">{m.nama}</h2>
+                      <p className="text-xs text-gray-500">{m.hubungan_kk} · {m.jenis_kelamin} · {u} tahun</p>
+                    </div>
+                    <div className="ml-auto text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-medium">
+                      ART {step}/{members.length}
+                    </div>
+                  </div>
+                  {q.show_i5 && renderBinaryQuestion('Cuci Tangan Pakai Sabun',
+                    'Apakah mencuci tangan dengan sabun di air mengalir?',
+                    r.i5_cuci_tangan as boolean | undefined, v => updateArt('i5_cuci_tangan', v))}
+                  {q.show_i8 && renderBinaryQuestion('Makan Sayur dan Buah',
+                    'Apakah makan sayur dan buah setiap hari?',
+                    r.i8_makan_sayur_buah as boolean | undefined, v => updateArt('i8_makan_sayur_buah', v))}
+                  {q.show_i9 && renderBinaryQuestion('Aktivitas Fisik',
+                    'Apakah melakukan aktivitas fisik minimal 30 menit/hari?',
+                    r.i9_aktivitas_fisik as boolean | undefined, v => updateArt('i9_aktivitas_fisik', v))}
+                  {q.show_i10 && renderBinaryQuestion('TIDAK Merokok',
+                    'Apakah ART ini TIDAK MEROKOK di dalam rumah?',
+                    r.i10_tidak_merokok as boolean | undefined, v => updateArt('i10_tidak_merokok', v))}
+                  {q.show_ckg && renderBinaryQuestion('Cek Kesehatan Berkala',
+                    'Apakah melakukan cek kesehatan minimal 1x dalam 6 bulan? (GERMAS)',
+                    r.g_cek_kesehatan as boolean | undefined, v => updateArt('g_cek_kesehatan', v))}
+                  {q.show_posyandu && renderBinaryQuestion('Kunjungan Posyandu',
+                    'Apakah hadir di posyandu bulan lalu? (GERMAS)',
+                    r.g_posyandu_hadir as boolean | undefined, v => updateArt('g_posyandu_hadir', v))}
+                </>
               )
-            })}
-          </div>
-        </div>
+            })()}
 
-        {groupIdx === totalGroups - 1 && (
-          <div className="bg-white rounded-xl border border-gray-100 p-4 mb-5">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Catatan Surveyor</label>
-            <textarea rows={3} value={catatan} onChange={e => setCatatan(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none" />
+            {/* Last step: notes */}
+            {step === totalSteps - 1 && (
+              <>
+                <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
+                  <span className="text-2xl">📝</span> Catatan &amp; Simpan
+                </h2>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Catatan Surveyor (opsional)</label>
+                <textarea rows={3} value={catatan} onChange={e => setCatatan(e.target.value)}
+                  placeholder="Catatan tambahan..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 resize-none" />
+              </>
+            )}
           </div>
         )}
 
-        {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-red-700 text-sm">⚠️ {error}</div>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-red-700 text-sm">⚠️ {error}</div>
+        )}
 
-        <div className="flex gap-3">
-          {groupIdx > 0 && (
-            <button onClick={() => setGroupIdx(i => i - 1)} className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-              ← Sebelumnya
-            </button>
-          )}
-
-          {groupIdx < totalGroups - 1 ? (
-            <button onClick={() => setGroupIdx(i => i + 1)} disabled={!allAnswered()}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium py-2.5 rounded-xl text-sm transition-colors">
-              Lanjut →
-            </button>
-          ) : (
-            <button onClick={handleSubmit} disabled={submitting || !allAnswered()}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
-              {submitting ? 'Menyimpan...' : '💾 Simpan Perubahan'}
-            </button>
-          )}
-        </div>
+        {/* Navigation */}
+        {members.length > 0 && (
+          <div className="flex gap-3">
+            {step > 0 && (
+              <button onClick={() => setStep(s => s - 1)}
+                className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                ← Sebelumnya
+              </button>
+            )}
+            {step < totalSteps - 1 ? (
+              <button onClick={() => setStep(s => s + 1)} disabled={!isStepValid()}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium py-2.5 rounded-xl text-sm transition-colors">
+                Lanjut →
+              </button>
+            ) : (
+              <button onClick={handleSubmit} disabled={submitting || !isStepValid()}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 text-white font-medium py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                {submitting ? 'Menyimpan...' : '💾 Simpan Perubahan'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

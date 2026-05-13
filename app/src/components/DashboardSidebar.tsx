@@ -32,7 +32,8 @@ export default function DashboardSidebar({ user }: Props) {
     { icon: '📊', label: 'Dashboard', href: '/dashboard' },
     { icon: '🏠', label: 'Data Rumah Tangga', href: '/dashboard/households' },
     { icon: '📋', label: 'Input Survei', href: '/dashboard/survey/new' },
-    { icon: '📈', label: 'Laporan & Analisis', href: '/dashboard/reports' },
+    { icon: '📑', label: 'Rekap Laporan PHBS', href: '/dashboard/reports/rekap' },
+    { icon: '📈', label: 'Analisis Laporan', href: '/dashboard/reports/analysis' },
     ...(isSuperAdmin ? [
       { icon: '👥', label: 'Manajemen User', href: '/dashboard/users' },
     ] : []),

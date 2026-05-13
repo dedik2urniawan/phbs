@@ -1,14 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { offlineDB, generateLocalId, nowISO } from '@/lib/db/offline'
+import { offlineDB, generateLocalId, nowISO, LocalFamilyMember } from '@/lib/db/offline'
 import { enqueueSync } from '@/lib/db/sync'
 import SyncStatusBar from '@/components/SyncStatusBar'
+import { hitungSkorPHBS, getARTQuestions, hitungUsia, ArtResponse, SurveyIndikator } from '@/lib/phbs/scoring'
 
-// ===== TYPES =====
 interface Household {
   id: string; no_kk: string; nama_kk: string
   ref_desa: { desa_kel: string } | null
@@ -24,221 +24,143 @@ interface Props {
   basePath?: string
 }
 
-// ===== 17 INDIKATOR GROUPS =====
-const INDIKATOR_GROUPS = [
-  {
-    group: 'Kesehatan Ibu & Anak',
-    icon: '👶',
-    items: [
-      {
-        key: 'i1_persalinan_nakes',
-        label: 'Persalinan oleh Tenaga Kesehatan',
-        desc: 'Apakah persalinan terakhir ditolong oleh tenaga kesehatan?',
-        skipIf: 'noBalita',     // Skip jika tidak ada ibu melahirkan <5 th
-        skipLabel: 'Tidak ada ibu yang melahirkan dalam 5 tahun terakhir',
-      },
-      {
-        key: 'i2_asi_eksklusif',
-        label: 'ASI Eksklusif',
-        desc: 'Apakah bayi (0-6 bulan) mendapat ASI eksklusif?',
-        skipIf: 'noBayi',
-        skipLabel: 'Tidak ada bayi 0-6 bulan',
-      },
-      {
-        key: 'i3_menimbang_balita',
-        label: 'Menimbang Balita',
-        desc: 'Apakah balita ditimbang minimal 8x dalam setahun di Posyandu?',
-        skipIf: 'noBalita',
-        skipLabel: 'Tidak ada balita (0-59 bulan)',
-      },
-    ],
-  },
-  {
-    group: 'Kesehatan Lingkungan',
-    icon: '🌿',
-    items: [
-      {
-        key: 'i4_air_bersih',
-        label: 'Menggunakan Air Bersih',
-        desc: 'Apakah keluarga menggunakan sumber air bersih (PAM, sumur bor, mata air terlindung)?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i5_cuci_tangan',
-        label: 'Cuci Tangan dengan Sabun',
-        desc: 'Apakah anggota keluarga mencuci tangan dengan sabun di air mengalir?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i6_jamban_sehat',
-        label: 'Menggunakan Jamban Sehat',
-        desc: 'Apakah keluarga menggunakan jamban sehat (leher angsa, tertutup, tidak mencemari)?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i7_psn',
-        label: 'Pemberantasan Sarang Nyamuk (PSN)',
-        desc: 'Apakah dilakukan PSN minimal seminggu sekali (3M Plus)?',
-        skipIf: null, skipLabel: null,
-      },
-    ],
-  },
-  {
-    group: 'Gizi & Aktivitas Fisik',
-    icon: '🥗',
-    items: [
-      {
-        key: 'i8_makan_sayur_buah',
-        label: 'Makan Sayur dan Buah',
-        desc: 'Apakah anggota keluarga makan sayur dan/atau buah setiap hari?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i9_aktivitas_fisik',
-        label: 'Aktivitas Fisik',
-        desc: 'Apakah anggota keluarga melakukan aktivitas fisik minimal 30 menit per hari?',
-        skipIf: null, skipLabel: null,
-      },
-    ],
-  },
-  {
-    group: 'Perilaku Sehat',
-    icon: '🚭',
-    items: [
-      {
-        key: 'i10_tidak_merokok',
-        label: 'Tidak Merokok di Dalam Rumah',
-        desc: 'Apakah tidak ada anggota keluarga yang merokok di dalam rumah?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i11_cek_kesehatan',
-        label: 'Cek Kesehatan Berkala',
-        desc: 'Apakah anggota keluarga melakukan pemeriksaan kesehatan minimal 1x dalam 6 bulan?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i12_kunjungan_posyandu',
-        label: 'Kunjungan Posyandu',
-        desc: 'Apakah ada anggota keluarga yang aktif berkunjung ke Posyandu?',
-        skipIf: null, skipLabel: null,
-      },
-    ],
-  },
-  {
-    group: 'Kesehatan Ibu Hamil',
-    icon: '🤰',
-    items: [
-      {
-        key: 'i14_ibu_hamil',
-        label: 'Ada Ibu Hamil',
-        desc: 'Apakah ada anggota keluarga yang sedang hamil?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i15_ibu_hamil_ttd',
-        label: 'Ibu Hamil Konsumsi TTD',
-        desc: 'Apakah ibu hamil rutin mengonsumsi Tablet Tambah Darah (TTD)?',
-        skipIf: 'noIbuHamil',
-        skipLabel: 'Tidak ada ibu hamil',
-      },
-    ],
-  },
-  {
-    group: 'Remaja Putri',
-    icon: '👧',
-    items: [
-      {
-        key: 'i16_remaja_putri',
-        label: 'Ada Remaja Putri (12-18 th)',
-        desc: 'Apakah ada remaja putri usia 12-18 tahun dalam keluarga?',
-        skipIf: null, skipLabel: null,
-      },
-      {
-        key: 'i17_remaja_putri_ttd',
-        label: 'Remaja Putri Konsumsi TTD',
-        desc: 'Apakah remaja putri rutin mengonsumsi Tablet Tambah Darah (TTD)?',
-        skipIf: 'noRemajaP',
-        skipLabel: 'Tidak ada remaja putri',
-      },
-    ],
-  },
-]
-
-type IndikatorValues = Record<string, boolean | null>
-type SkipFlags = { noBalita: boolean; noBayi: boolean; noIbuHamil: boolean; noRemajaP: boolean }
-
-const defaultSkip: SkipFlags = { noBalita: false, noBayi: false, noIbuHamil: false, noRemajaP: false }
-
 export default function SurveyWizard({ appUser, initialHousehold, householdList, basePath = '/dashboard' }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
   const [household, setHousehold] = useState<Household | null>(initialHousehold)
-  const [groupIdx, setGroupIdx] = useState(0)
-  const [values, setValues] = useState<IndikatorValues>({})
-  const [skipFlags, setSkipFlags] = useState<SkipFlags>(defaultSkip)
+  const [members, setMembers] = useState<LocalFamilyMember[]>([])
+  const [step, setStep] = useState(0)
+  
+  // State for survey responses
+  const [surveyKK, setSurveyKK] = useState<Partial<SurveyIndikator>>({})
+  const [artResponses, setArtResponses] = useState<Record<string, Partial<ArtResponse>>>({})
   const [catatan, setCatatan] = useState('')
+  
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [scoreResult, setScoreResult] = useState<any>(null)
 
-  const currentGroup = INDIKATOR_GROUPS[groupIdx]
-  const totalGroups = INDIKATOR_GROUPS.length
-  const progress = Math.round(((groupIdx) / totalGroups) * 100)
+  // Load members when household changes
+  useEffect(() => {
+    if (!household) return
+    async function loadMembers() {
+      let m = await offlineDB.family_members.where('household_id').equals(household!.id).toArray()
+      if (m.length === 0 && navigator.onLine) {
+        const { data } = await supabase.from('family_members').select('*').eq('household_id', household!.id)
+        if (data) {
+          m = data as LocalFamilyMember[]
+          await offlineDB.family_members.bulkPut(m)
+        }
+      }
+      setMembers(m)
+      
+      // Init ART responses
+      const initialArt: Record<string, Partial<ArtResponse>> = {}
+      m.forEach(mem => {
+        initialArt[mem.id] = { family_member_id: mem.id }
+      })
+      setArtResponses(initialArt)
+    }
+    loadMembers()
+  }, [household])
 
-  function setAnswer(key: string, val: boolean | null) {
-    setValues(prev => ({ ...prev, [key]: val }))
-    // Skip logic triggers
-    if (key === 'i14_ibu_hamil') setSkipFlags(p => ({ ...p, noIbuHamil: val === false }))
-    if (key === 'i16_remaja_putri') setSkipFlags(p => ({ ...p, noRemajaP: val === false }))
-  }
+  // Hitung total steps: 1 (KK) + members.length (ART) + 1 (Catatan)
+  const totalSteps = members.length > 0 ? members.length + 2 : 2
+  const progress = Math.round((step / (totalSteps - 1)) * 100)
 
-  function isSkipped(item: typeof INDIKATOR_GROUPS[0]['items'][0]): boolean {
-    if (!item.skipIf) return false
-    return skipFlags[item.skipIf as keyof SkipFlags]
-  }
+  // Cek apakah balita/bayi ada untuk applicability
+  const hasBalita = members.some(m => hitungUsia(m.tgl_lahir) < 5)
+  const hasBayi = members.some(m => hitungUsia(m.tgl_lahir) === 0) // Asumsi usia 0 = bayi
+  const hasIbuHamil = surveyKK.i14_ibu_hamil === true
+  const hasRemajaP = members.some(m => {
+    const u = hitungUsia(m.tgl_lahir)
+    return m.jenis_kelamin === 'P' && u >= 12 && u <= 18
+  })
 
-  function allAnswered(): boolean {
-    return currentGroup.items.every(item => {
-      if (isSkipped(item)) return true
-      return values[item.key] !== undefined
-    })
+  // Validasi step
+  const isStepValid = () => {
+    if (step === 0) {
+      if (!household) return false
+      // Validasi KK questions
+      const reqKeys = ['i4_air_bersih', 'i6_jamban_sehat', 'i7_psn']
+      if (hasBalita) reqKeys.push('i1_persalinan_nakes', 'i3_menimbang_balita')
+      if (hasBayi) reqKeys.push('i2_asi_eksklusif')
+      reqKeys.push('i14_ibu_hamil')
+      if (hasIbuHamil) reqKeys.push('i15_ibu_hamil_ttd')
+      
+      return reqKeys.every(k => surveyKK[k as keyof SurveyIndikator] !== undefined)
+    }
+    if (step > 0 && step <= members.length) {
+      const m = members[step - 1]
+      const q = getARTQuestions(hitungUsia(m.tgl_lahir), m.jenis_kelamin)
+      const r = artResponses[m.id]
+      if (!r) return false
+      if (q.show_i5 && r.i5_cuci_tangan === undefined) return false
+      if (q.show_i8 && r.i8_makan_sayur_buah === undefined) return false
+      if (q.show_i9 && r.i9_aktivitas_fisik === undefined) return false
+      if (q.show_i10 && r.i10_tidak_merokok === undefined) return false
+      if (q.show_ckg && r.g_cek_kesehatan === undefined) return false
+      if (q.show_posyandu && r.g_posyandu_hadir === undefined) return false
+      return true
+    }
+    return true
   }
 
   async function handleSubmit() {
     setSubmitting(true)
     setError('')
 
-    if (!household) { setError('Pilih KK terlebih dahulu'); setSubmitting(false); return }
+    const surveyData: SurveyIndikator = {
+      i1_persalinan_nakes: hasBalita ? (surveyKK.i1_persalinan_nakes ?? null) : null,
+      i2_asi_eksklusif: hasBayi ? (surveyKK.i2_asi_eksklusif ?? null) : null,
+      i3_menimbang_balita: hasBalita ? (surveyKK.i3_menimbang_balita ?? null) : null,
+      i4_air_bersih: surveyKK.i4_air_bersih ?? false,
+      i6_jamban_sehat: surveyKK.i6_jamban_sehat ?? false,
+      i7_psn: surveyKK.i7_psn ?? false,
+      i14_ibu_hamil: surveyKK.i14_ibu_hamil ?? false,
+      i15_ibu_hamil_ttd: hasIbuHamil ? (surveyKK.i15_ibu_hamil_ttd ?? null) : null,
+      i16_remaja_putri: hasRemajaP,
+    }
+
+    const artList = Object.values(artResponses) as ArtResponse[]
+    const score = hitungSkorPHBS(surveyData, artList)
+    setScoreResult(score)
 
     const id = generateLocalId()
     const now = nowISO()
 
-    // Build survey record — set null untuk yang di-skip
+    // Aggregate values for legacy columns
+    const artCuciTangan = artList.filter(a => a.i5_cuci_tangan !== null)
+    const i5 = artCuciTangan.length > 0 && artCuciTangan.some(a => a.i5_cuci_tangan)
+    const artMakanSayur = artList.filter(a => a.i8_makan_sayur_buah !== null)
+    const i8 = artMakanSayur.length > 0 && artMakanSayur.some(a => a.i8_makan_sayur_buah)
+    const artAktivitas = artList.filter(a => a.i9_aktivitas_fisik !== null)
+    const i9 = artAktivitas.length > 0 && artAktivitas.some(a => a.i9_aktivitas_fisik)
+    const i10 = !artList.some(a => a.i10_tidak_merokok === false)
+    const i11 = artList.some(a => a.g_cek_kesehatan === true)
+    const i12 = artList.some(a => a.g_posyandu_hadir === true)
+
     const record = {
       id,
-      household_id: household.id,
+      household_id: household!.id,
       tahun: new Date().getFullYear(),
       survey_date: new Date().toISOString().split('T')[0],
-      i1_persalinan_nakes: skipFlags.noBalita ? null : (values['i1_persalinan_nakes'] ?? null),
-      i2_asi_eksklusif: skipFlags.noBayi ? null : (values['i2_asi_eksklusif'] ?? null),
-      i3_menimbang_balita: skipFlags.noBalita ? null : (values['i3_menimbang_balita'] ?? null),
-      i4_air_bersih: values['i4_air_bersih'] ?? false,
-      i5_cuci_tangan: values['i5_cuci_tangan'] ?? false,
-      i6_jamban_sehat: values['i6_jamban_sehat'] ?? false,
-      i7_psn: values['i7_psn'] ?? false,
-      i8_makan_sayur_buah: values['i8_makan_sayur_buah'] ?? false,
-      i9_aktivitas_fisik: values['i9_aktivitas_fisik'] ?? false,
-      i10_tidak_merokok: values['i10_tidak_merokok'] ?? false,
-      i11_cek_kesehatan: values['i11_cek_kesehatan'] ?? false,
-      i12_kunjungan_posyandu: values['i12_kunjungan_posyandu'] ?? false,
+      ...surveyData,
+      i5_cuci_tangan: i5,
+      i8_makan_sayur_buah: i8,
+      i9_aktivitas_fisik: i9,
+      i10_tidak_merokok: i10,
+      i11_cek_kesehatan: i11,
+      i12_kunjungan_posyandu: i12,
       i13_pengunjung_posyandu: null,
-      i14_ibu_hamil: values['i14_ibu_hamil'] ?? false,
-      i15_ibu_hamil_ttd: skipFlags.noIbuHamil ? null : (values['i15_ibu_hamil_ttd'] ?? null),
-      i16_remaja_putri: values['i16_remaja_putri'] ?? false,
-      i17_remaja_putri_ttd: skipFlags.noRemajaP ? null : (values['i17_remaja_putri_ttd'] ?? null),
+      i17_remaja_putri_ttd: null,
       catatan: catatan || null,
+      skor_phbs: score.skor,
+      denominator_phbs: score.denominator,
+      is_rt_sehat: score.is_rt_sehat,
+      kategori_phbs: score.kategori,
       created_by: appUser.id,
       created_at: now,
       updated_at: now,
@@ -246,24 +168,64 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
     }
 
     try {
-      await offlineDB.surveys.add(record)
+      // 1. Simpan ke local DB
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await offlineDB.surveys.add(record as any)
+      
+      const artRecordsToSave = artList.map(art => ({
+        id: generateLocalId(),
+        survey_id: id,
+        family_member_id: art.family_member_id,
+        i5_cuci_tangan: art.i5_cuci_tangan ?? null,
+        i8_makan_sayur_buah: art.i8_makan_sayur_buah ?? null,
+        i9_aktivitas_fisik: art.i9_aktivitas_fisik ?? null,
+        i10_tidak_merokok: art.i10_tidak_merokok ?? null,
+        g_cek_kesehatan: art.g_cek_kesehatan ?? null,
+        g_posyandu_hadir: art.g_posyandu_hadir ?? null,
+        created_at: now,
+        updated_at: now,
+        sync_status: 'pending' as const
+      }))
 
+      for (const artRecord of artRecordsToSave) {
+        await offlineDB.survey_art_responses.add(artRecord)
+      }
+
+      // 2. Coba simpan ke server jika online
       if (navigator.onLine) {
         const { error: sbErr } = await supabase.from('surveys').insert({
           ...record, sync_status: undefined,
         })
+        
         if (!sbErr) {
           await offlineDB.surveys.update(id, { sync_status: 'synced' })
+          
+          for (const artRecord of artRecordsToSave) {
+            const payload = { ...artRecord, sync_status: undefined }
+            const { error: artErr } = await supabase.from('survey_art_responses').upsert(payload)
+            if (!artErr) {
+               await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
+            } else {
+               await enqueueSync('survey_art_responses', artRecord.id, 'insert', artRecord)
+            }
+          }
         } else {
           if (sbErr.code === '23505') {
             await offlineDB.surveys.delete(id)
+            for (const artRecord of artRecordsToSave) await offlineDB.survey_art_responses.delete(artRecord.id)
             setError('Survei untuk KK ini di tahun ini sudah ada.')
             setSubmitting(false); return
           }
           await enqueueSync('surveys', id, 'insert', record)
+          for (const artRecord of artRecordsToSave) {
+             await enqueueSync('survey_art_responses', artRecord.id, 'insert', artRecord)
+          }
         }
       } else {
         await enqueueSync('surveys', id, 'insert', record)
+        for (const artRecord of artRecordsToSave) {
+           await enqueueSync('survey_art_responses', artRecord.id, 'insert', artRecord)
+        }
       }
 
       setDone(true)
@@ -274,32 +236,7 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
     }
   }
 
-  // ===== DONE SCREEN =====
-  if (done) {
-    // Hitung skor
-    const boolKeys = ['i4_air_bersih','i5_cuci_tangan','i6_jamban_sehat','i7_psn',
-      'i8_makan_sayur_buah','i9_aktivitas_fisik','i10_tidak_merokok','i11_cek_kesehatan',
-      'i12_kunjungan_posyandu','i14_ibu_hamil','i16_remaja_putri']
-    const nullableKeys = ['i1_persalinan_nakes','i2_asi_eksklusif','i3_menimbang_balita',
-      'i15_ibu_hamil_ttd','i17_remaja_putri_ttd']
-    let total = 0; let max = boolKeys.length
-    boolKeys.forEach(k => { if (values[k]) total++ })
-    nullableKeys.forEach(k => { if (values[k] !== undefined && values[k] !== null) { max++; if (values[k]) total++ } })
-    const pct = max > 0 ? Math.round((total/max)*100) : 0
-    const kategori = pct >= 75 ? 'Sehat Paripurna' : pct >= 50 ? 'Sehat Utama' : pct >= 25 ? 'Sehat Madya' : 'Sehat Pratama'
-    const kategoriColor = pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-blue-600' : pct >= 25 ? 'text-amber-600' : 'text-red-600'
-
-    const failedIndicators = [...boolKeys, ...nullableKeys].filter(k => {
-      const val = values[k]
-      return val === false
-    }).map(k => {
-      for (const g of INDIKATOR_GROUPS) {
-        const item = g.items.find(i => i.key === k)
-        if (item) return item.label
-      }
-      return k
-    })
-
+  if (done && scoreResult) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-xl text-center max-w-lg w-full">
@@ -309,30 +246,22 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 rounded-2xl p-5 text-center">
-              <p className="text-4xl font-black text-gray-800">{total}<span className="text-lg text-gray-400">/{max}</span></p>
+              <p className="text-4xl font-black text-gray-800">{scoreResult.skor}<span className="text-lg text-gray-400">/{scoreResult.denominator}</span></p>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mt-1">Skor Indikator</p>
             </div>
             <div className={`rounded-2xl p-5 text-center border flex flex-col justify-center ${
-              pct >= 75 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 
-              pct >= 50 ? 'bg-blue-50 border-blue-100 text-blue-700' :
-              'bg-red-50 border-red-100 text-red-700'
+              scoreResult.is_rt_sehat ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'
             }`}>
-              <p className="text-lg font-black leading-tight">{kategori}</p>
+              <p className="text-lg font-black leading-tight">{scoreResult.kategori}</p>
               <p className="text-[10px] uppercase tracking-wide font-bold opacity-60 mt-1">Klasifikasi PHBS</p>
             </div>
           </div>
 
-          <div className="mb-8">
-            <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
-              <div className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-1000" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-
-          {failedIndicators.length > 0 && (
+          {scoreResult.failed_indicators.length > 0 && (
             <div className="mb-8 text-left">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">⚠️ Akar Masalah (Failure):</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">⚠️ Indikator Gagal:</p>
               <div className="space-y-2">
-                {failedIndicators.map(label => (
+                {scoreResult.failed_indicators.map((label: string) => (
                   <div key={label} className="bg-red-50 text-red-700 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
                     <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
                     {label}
@@ -357,37 +286,51 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
     )
   }
 
+  const renderBinaryQuestion = (label: string, desc: string, val: boolean | undefined, onChange: (v: boolean) => void) => (
+    <div className={`rounded-xl p-4 border transition-all mb-4 ${
+      val === true ? 'bg-emerald-50 border-emerald-200' : val === false ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'
+    }`}>
+      <p className="text-sm font-semibold text-gray-800 mb-1">{label}</p>
+      {desc && <p className="text-xs text-gray-500 mb-3">{desc}</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => onChange(true)}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${val === true ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+          ✅ Ya
+        </button>
+        <button type="button" onClick={() => onChange(false)}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${val === false ? 'bg-red-500 text-white border-red-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+          ❌ Tidak
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href={`${basePath}/households`} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
-            </svg>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
           </Link>
           <div>
-            <h1 className="text-lg font-bold text-gray-800">Survei PHBS 17 Indikator</h1>
+            <h1 className="text-lg font-bold text-gray-800">Survei PHBS (Update)</h1>
             <p className="text-xs text-gray-500">{appUser?.ref_puskesmas?.nama}</p>
           </div>
         </div>
         <SyncStatusBar />
       </div>
 
-      {/* Progress bar */}
       <div className="bg-white border-b border-gray-100">
         <div className="h-1 bg-gray-100">
           <div className="h-1 bg-emerald-500 transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
         <div className="px-6 py-2 flex items-center justify-between text-xs text-gray-400">
-          <span>Kelompok {groupIdx + 1} dari {totalGroups}</span>
+          <span>Langkah {step + 1} dari {totalSteps}</span>
           <span>{progress}% selesai</span>
         </div>
       </div>
 
       <div className="p-6 max-w-2xl mx-auto">
-        {/* KK Selector */}
         {!household && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
             <p className="text-amber-800 text-sm font-medium mb-2">Pilih Rumah Tangga</p>
@@ -396,12 +339,10 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
                 const h = householdList.find(h => h.id === e.target.value)
                 setHousehold(h || null)
               }}
-              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
             >
               <option value="">— Pilih KK —</option>
-              {householdList.map(h => (
-                <option key={h.id} value={h.id}>{h.nama_kk} ({h.no_kk})</option>
-              ))}
+              {householdList.map(h => <option key={h.id} value={h.id}>{h.nama_kk} ({h.no_kk})</option>)}
             </select>
           </div>
         )}
@@ -416,137 +357,99 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
           </div>
         )}
 
-        {/* Skip flags */}
-        {groupIdx === 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
-            <p className="text-blue-800 text-sm font-medium mb-3">📋 Komposisi Keluarga</p>
-            <p className="text-blue-600 text-xs mb-3">Tandai kondisi yang ada agar pertanyaan yang tidak relevan dilewati:</p>
-            <div className="space-y-2">
-              {[
-                { flag: 'noBalita', label: 'Tidak ada bayi/balita (0-59 bulan) & ibu melahirkan' },
-                { flag: 'noBayi', label: 'Tidak ada bayi 0-6 bulan' },
-              ].map(({ flag, label }) => (
-                <label key={flag} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={skipFlags[flag as keyof SkipFlags]}
-                    onChange={e => setSkipFlags(p => ({ ...p, [flag]: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-600"
-                  />
-                  <span className="text-sm text-blue-700">{label}</span>
-                </label>
-              ))}
-            </div>
+        {household && members.length === 0 && (
+          <div className="bg-blue-50 text-blue-700 p-4 rounded-xl text-sm mb-5">
+            Loading data anggota keluarga...
           </div>
         )}
 
-        {/* Current Group */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm mb-5">
-          <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
-            <span className="text-2xl">{currentGroup.icon}</span>
-            {currentGroup.group}
-          </h2>
+        {household && members.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm mb-5">
+            {step === 0 && (
+              <>
+                <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
+                  <span className="text-2xl">📋</span> Pertanyaan Level Rumah Tangga
+                </h2>
+                {renderBinaryQuestion("Menggunakan Air Bersih", "Apakah keluarga menggunakan sumber air bersih?", surveyKK.i4_air_bersih, v => setSurveyKK({...surveyKK, i4_air_bersih: v}))}
+                {renderBinaryQuestion("Menggunakan Jamban Sehat", "Apakah keluarga menggunakan jamban sehat leher angsa?", surveyKK.i6_jamban_sehat, v => setSurveyKK({...surveyKK, i6_jamban_sehat: v}))}
+                {renderBinaryQuestion("Pemberantasan Sarang Nyamuk (PSN)", "Apakah dilakukan PSN minimal seminggu sekali (3M Plus)?", surveyKK.i7_psn, v => setSurveyKK({...surveyKK, i7_psn: v}))}
+                
+                {hasBalita && renderBinaryQuestion("Persalinan oleh Tenaga Kesehatan", "Apakah persalinan terakhir ditolong oleh tenaga kesehatan?", surveyKK.i1_persalinan_nakes ?? undefined, v => setSurveyKK({...surveyKK, i1_persalinan_nakes: v}))}
+                {hasBayi && renderBinaryQuestion("ASI Eksklusif", "Apakah bayi (0-6 bulan) mendapat ASI eksklusif?", surveyKK.i2_asi_eksklusif ?? undefined, v => setSurveyKK({...surveyKK, i2_asi_eksklusif: v}))}
+                {hasBalita && renderBinaryQuestion("Menimbang Balita", "Apakah balita ditimbang minimal 8x dalam setahun di Posyandu?", surveyKK.i3_menimbang_balita ?? undefined, v => setSurveyKK({...surveyKK, i3_menimbang_balita: v}))}
+                
+                {renderBinaryQuestion("Ada Ibu Hamil", "Apakah ada anggota keluarga yang sedang hamil?", surveyKK.i14_ibu_hamil ?? undefined, v => setSurveyKK({...surveyKK, i14_ibu_hamil: v}))}
+                {hasIbuHamil && renderBinaryQuestion("Ibu Hamil Konsumsi TTD", "Apakah ibu hamil rutin mengonsumsi TTD?", surveyKK.i15_ibu_hamil_ttd ?? undefined, v => setSurveyKK({...surveyKK, i15_ibu_hamil_ttd: v}))}
+              </>
+            )}
 
-          <div className="space-y-5">
-            {currentGroup.items.map(item => {
-              const skipped = isSkipped(item)
-              const val = values[item.key]
+            {step > 0 && step <= members.length && (
+              <>
+                {(() => {
+                  const m = members[step - 1]
+                  const u = hitungUsia(m.tgl_lahir)
+                  const q = getARTQuestions(u, m.jenis_kelamin)
+                  const r = artResponses[m.id]
+                  const updateArt = (key: keyof ArtResponse, val: boolean) => {
+                    setArtResponses(prev => ({...prev, [m.id]: {...prev[m.id], [key]: val}}))
+                  }
 
-              return (
-                <div key={item.key} className={`rounded-xl p-4 border transition-all ${
-                  skipped ? 'bg-gray-50 border-gray-100 opacity-50' :
-                  val === true ? 'bg-emerald-50 border-emerald-200' :
-                  val === false ? 'bg-red-50 border-red-200' :
-                  'bg-white border-gray-100'
-                }`}>
-                  <p className="text-sm font-semibold text-gray-800 mb-1">{item.label}</p>
-                  <p className="text-xs text-gray-500 mb-3">{item.desc}</p>
+                  return (
+                    <>
+                      <div className="flex items-center gap-3 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-xl">👤</div>
+                        <div>
+                          <h2 className="text-base font-bold text-gray-800">{m.nama}</h2>
+                          <p className="text-xs text-gray-500">{m.hubungan_kk} · {m.jenis_kelamin} · {u} tahun</p>
+                        </div>
+                      </div>
 
-                  {skipped ? (
-                    <p className="text-xs text-gray-400 italic">⤷ {item.skipLabel}</p>
-                  ) : (
-                    <div className="flex gap-2">
-                      {[
-                        { v: true, label: '✅ Ya' },
-                        { v: false, label: '❌ Tidak' },
-                      ].map(({ v, label }) => (
-                        <button
-                          key={String(v)}
-                          type="button"
-                          onClick={() => setAnswer(item.key, v)}
-                          className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                            val === v
-                              ? v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-red-500 text-white border-red-500'
-                              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                      {q.show_i5 && renderBinaryQuestion("Cuci Tangan Pakai Sabun", "Apakah mencuci tangan dengan sabun di air mengalir?", r.i5_cuci_tangan ?? undefined, v => updateArt('i5_cuci_tangan', v))}
+                      {q.show_i8 && renderBinaryQuestion("Makan Sayur dan Buah", "Apakah makan sayur dan buah setiap hari?", r.i8_makan_sayur_buah ?? undefined, v => updateArt('i8_makan_sayur_buah', v))}
+                      {q.show_i9 && renderBinaryQuestion("Aktivitas Fisik", "Apakah melakukan aktivitas fisik minimal 30 menit/hari?", r.i9_aktivitas_fisik ?? undefined, v => updateArt('i9_aktivitas_fisik', v))}
+                      {q.show_i10 && renderBinaryQuestion("TIDAK Merokok", "Apakah ART ini TIDAK MEROKOK?", r.i10_tidak_merokok ?? undefined, v => updateArt('i10_tidak_merokok', v))}
+                      {q.show_ckg && renderBinaryQuestion("Cek Kesehatan Berkala", "Apakah melakukan cek kesehatan minimal 1x dalam 6 bulan? (GERMAS)", r.g_cek_kesehatan ?? undefined, v => updateArt('g_cek_kesehatan', v))}
+                      {q.show_posyandu && renderBinaryQuestion("Kunjungan Posyandu", "Apakah hadir di posyandu bulan lalu? (GERMAS)", r.g_posyandu_hadir ?? undefined, v => updateArt('g_posyandu_hadir', v))}
+                    </>
+                  )
+                })()}
+              </>
+            )}
+
+            {step === totalSteps - 1 && (
+              <>
+                <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
+                  <span className="text-2xl">📝</span> Catatan & Simpan
+                </h2>
+                <div className="bg-white rounded-xl border border-gray-100 p-4 mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Catatan Surveyor (opsional)</label>
+                  <textarea rows={3} value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="Catatan tambahan..." className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 resize-none"/>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Catatan (di group terakhir) */}
-        {groupIdx === totalGroups - 1 && (
-          <div className="bg-white rounded-xl border border-gray-100 p-4 mb-5">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Catatan Surveyor (opsional)
-            </label>
-            <textarea
-              rows={3}
-              value={catatan}
-              onChange={e => setCatatan(e.target.value)}
-              placeholder="Catatan tambahan, kondisi khusus, dll..."
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"
-            />
+              </>
+            )}
           </div>
         )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-red-700 text-sm">
-            ⚠️ {error}
+        {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-red-700 text-sm">⚠️ {error}</div>}
+
+        {household && members.length > 0 && (
+          <div className="flex gap-3">
+            {step > 0 && (
+              <button onClick={() => setStep(s => s - 1)} className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                ← Sebelumnya
+              </button>
+            )}
+            {step < totalSteps - 1 ? (
+              <button onClick={() => setStep(s => s + 1)} disabled={!isStepValid()} className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium py-2.5 rounded-xl text-sm transition-colors">
+                Lanjut →
+              </button>
+            ) : (
+              <button onClick={handleSubmit} disabled={submitting || !isStepValid()} className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 text-white font-medium py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+                {submitting ? 'Menyimpan...' : '💾 Simpan Survei'}
+              </button>
+            )}
           </div>
         )}
-
-        {/* Navigation */}
-        <div className="flex gap-3">
-          {groupIdx > 0 && (
-            <button
-              onClick={() => setGroupIdx(i => i - 1)}
-              className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              ← Sebelumnya
-            </button>
-          )}
-
-          {groupIdx < totalGroups - 1 ? (
-            <button
-              onClick={() => setGroupIdx(i => i + 1)}
-              disabled={!allAnswered() || !household}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium py-2.5 rounded-xl text-sm transition-colors"
-            >
-              {allAnswered() ? 'Lanjut →' : 'Jawab semua pertanyaan'}
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !allAnswered() || !household}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                </svg> Menyimpan...</>
-              ) : '💾 Simpan Survei'}
-            </button>
-          )}
-        </div>
       </div>
     </div>
   )
