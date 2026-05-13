@@ -35,17 +35,18 @@ export interface LocalSurvey {
   household_id: string
   tahun: number
   survey_date: string
-  // 17 Indikator (sesuai schema DB)
+  // 10 Indikator PHBS Inti
   i1_persalinan_nakes: boolean | null
   i2_asi_eksklusif: boolean | null
   i3_menimbang_balita: boolean | null
   i4_air_bersih: boolean
-  i5_cuci_tangan: boolean
+  i5_cuci_tangan: boolean        // Computed dari ART responses
   i6_jamban_sehat: boolean
   i7_psn: boolean
-  i8_makan_sayur_buah: boolean
-  i9_aktivitas_fisik: boolean
-  i10_tidak_merokok: boolean
+  i8_makan_sayur_buah: boolean   // Computed dari ART responses
+  i9_aktivitas_fisik: boolean    // Computed dari ART responses
+  i10_tidak_merokok: boolean     // Computed dari ART responses
+  // Indikator GERMAS (non-PHBS, dianalisis terpisah)
   i11_cek_kesehatan: boolean
   i12_kunjungan_posyandu: boolean
   i13_pengunjung_posyandu: string[] | null
@@ -54,7 +55,28 @@ export interface LocalSurvey {
   i16_remaja_putri: boolean
   i17_remaja_putri_ttd: boolean | null
   catatan: string | null
+  // Skor PHBS (baru v2)
+  skor_phbs: number | null
+  denominator_phbs: number | null
+  is_rt_sehat: boolean | null
+  kategori_phbs: string | null
   created_by: string
+  created_at: string
+  updated_at: string
+  sync_status: 'synced' | 'pending' | 'error'
+}
+
+// Jawaban per-ART untuk indikator Role Modelling
+export interface LocalSurveyArtResponse {
+  id: string
+  survey_id: string
+  family_member_id: string
+  i5_cuci_tangan: boolean | null
+  i8_makan_sayur_buah: boolean | null
+  i9_aktivitas_fisik: boolean | null
+  i10_tidak_merokok: boolean | null
+  g_cek_kesehatan: boolean | null
+  g_posyandu_hadir: boolean | null
   created_at: string
   updated_at: string
   sync_status: 'synced' | 'pending' | 'error'
@@ -75,6 +97,7 @@ class PHBSDatabase extends Dexie {
   households!: Table<LocalHousehold>
   family_members!: Table<LocalFamilyMember>
   surveys!: Table<LocalSurvey>
+  survey_art_responses!: Table<LocalSurveyArtResponse>
   sync_queue!: Table<SyncQueueItem>
 
   constructor() {
@@ -84,6 +107,14 @@ class PHBSDatabase extends Dexie {
       family_members: 'id, household_id, nik, sync_status',
       surveys:        'id, household_id, tahun, sync_status',
       sync_queue:     '++id, table_name, record_id, operation, created_at',
+    })
+    // v2: Tambah tabel ART responses + skor ke surveys
+    this.version(2).stores({
+      households:             'id, puskesmas_id, desa_id, no_kk, sync_status, created_at',
+      family_members:         'id, household_id, nik, sync_status',
+      surveys:                'id, household_id, tahun, sync_status, is_rt_sehat',
+      survey_art_responses:   'id, survey_id, family_member_id, sync_status',
+      sync_queue:             '++id, table_name, record_id, operation, created_at',
     })
   }
 }
