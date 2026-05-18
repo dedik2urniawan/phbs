@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -11,8 +11,13 @@ import { hitungSkorPHBS, getARTQuestions, hitungUsia, ArtResponse, SurveyIndikat
 
 interface Household {
   id: string; no_kk: string; nama_kk: string
+  puskesmas_id?: string
+  alamat?: string; rt?: string; rw?: string
   ref_desa: { desa_kel: string } | null
+  ref_puskesmas?: { nama: string } | null
 }
+interface Desa { id: string; desa_kel: string; puskesmas_id: string }
+interface Puskesmas { id: string; nama: string; kecamatan: string }
 interface AppUser {
   id: string; email: string; role: string; puskesmas_id: string
   ref_puskesmas: { id: string; nama: string; kecamatan: string } | null
@@ -21,10 +26,17 @@ interface Props {
   appUser: AppUser
   initialHousehold: Household | null
   householdList: Household[]
+  isSuperAdmin?: boolean
+  allPuskesmas?: Puskesmas[]
+  initialDesaList?: Desa[]
   basePath?: string
 }
 
-export default function SurveyWizard({ appUser, initialHousehold, householdList, basePath = '/dashboard' }: Props) {
+export default function SurveyWizard({ 
+  appUser, initialHousehold, householdList, 
+  isSuperAdmin = false, allPuskesmas = [], initialDesaList = [],
+  basePath = '/dashboard' 
+}: Props) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -41,6 +53,67 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
   const [scoreResult, setScoreResult] = useState<any>(null)
+
+  // Filters for household selection
+  const [search, setSearch]             = useState('')
+  const [filterDesa, setFilterDesa]     = useState('')
+  const [selectedPkm, setSelectedPkm]   = useState('')
+  const [desaList, setDesaList]         = useState<Desa[]>(initialDesaList)
+  const [households, setHouseholds]     = useState<Household[]>(householdList)
+  const [currentPage, setCurrentPage]   = useState(1)
+  const itemsPerPage = 5
+  
+  const handlePkmChange = useCallback(async (pkmId: string) => {
+    setSelectedPkm(pkmId)
+    setFilterDesa('')
+    setCurrentPage(1)
+
+    if (pkmId) {
+      const { data: desa } = await supabase
+        .from('ref_desa')
+        .select('id, desa_kel, puskesmas_id')
+        .eq('puskesmas_id', pkmId)
+        .order('desa_kel')
+      setDesaList(desa || [])
+
+      const { data: hh } = await supabase
+        .from('households')
+        .select('id, no_kk, nama_kk, puskesmas_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
+        .eq('puskesmas_id', pkmId)
+        .order('created_at', { ascending: false })
+        .limit(1000)
+      
+      const formatted = (hh || []).map(h => ({
+        ...h,
+        ref_desa: Array.isArray(h.ref_desa) ? (h.ref_desa[0] ?? null) : h.ref_desa,
+      }))
+      setHouseholds(formatted as Household[])
+    } else {
+      setDesaList([])
+      const { data: hh } = await supabase
+        .from('households')
+        .select('id, no_kk, nama_kk, puskesmas_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
+        .order('created_at', { ascending: false })
+        .limit(1000)
+        
+      const formatted = (hh || []).map(h => ({
+        ...h,
+        ref_desa: Array.isArray(h.ref_desa) ? (h.ref_desa[0] ?? null) : h.ref_desa,
+      }))
+      setHouseholds(formatted as Household[])
+    }
+  }, [supabase])
+
+  const filtered = households.filter(h => {
+    const matchSearch = !search ||
+      h.nama_kk.toLowerCase().includes(search.toLowerCase()) ||
+      h.no_kk.includes(search)
+    const matchDesa = !filterDesa || h.ref_desa?.desa_kel === filterDesa
+    return matchSearch && matchDesa
+  })
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage)
+  const paginatedHouseholds = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   // Load members when household changes
   useEffect(() => {
@@ -333,18 +406,91 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
 
       <div className="p-6 max-w-2xl mx-auto">
         {!household && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
-            <p className="text-amber-800 text-sm font-medium mb-2">Pilih Rumah Tangga</p>
-            <select
-              onChange={e => {
-                const h = householdList.find(h => h.id === e.target.value)
-                setHousehold(h || null)
-              }}
-              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white"
-            >
-              <option value="">— Pilih KK —</option>
-              {householdList.map(h => <option key={h.id} value={h.id}>{h.nama_kk} ({h.no_kk})</option>)}
-            </select>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-5 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-800 mb-4">Pilih Rumah Tangga</h2>
+            
+            <div className="flex flex-wrap gap-3 mb-5">
+              <div className="flex-1 min-w-48 relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Cari nama KK atau No KK..."
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none text-gray-900 bg-white font-medium placeholder-gray-400"
+                />
+              </div>
+
+              {isSuperAdmin && (
+                <select
+                  value={selectedPkm}
+                  onChange={e => handlePkmChange(e.target.value)}
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none text-gray-900 bg-white min-w-40 font-medium"
+                >
+                  <option value="">🏥 Semua Puskesmas</option>
+                  {allPuskesmas.map(p => (
+                    <option key={p.id} value={p.id}>{p.nama}</option>
+                  ))}
+                </select>
+              )}
+
+              {desaList.length > 0 && (
+                <select
+                  value={filterDesa}
+                  onChange={e => { setFilterDesa(e.target.value); setCurrentPage(1); }}
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none text-gray-900 bg-white min-w-32 font-medium"
+                >
+                  <option value="">Semua Desa</option>
+                  {desaList.map(d => (
+                    <option key={d.id} value={d.desa_kel}>{d.desa_kel}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {paginatedHouseholds.length > 0 ? paginatedHouseholds.map(h => (
+                <div key={h.id} 
+                  onClick={() => setHousehold(h)}
+                  className="bg-white border border-gray-100 rounded-xl p-4 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer group"
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-mono">{h.no_kk}</span>
+                        {h.ref_desa && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{h.ref_desa.desa_kel}</span>}
+                        {isSuperAdmin && h.ref_puskesmas && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{h.ref_puskesmas.nama}</span>
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-gray-800 text-sm group-hover:text-emerald-600 transition-colors">{h.nama_kk}</h3>
+                      <p className="text-gray-400 text-xs mt-0.5">{h.alamat} RT {h.rt}/RW {h.rw}</p>
+                    </div>
+                    <div className="text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  Tidak ada data KK ditemukan
+                </div>
+              )}
+            </div>
+
+            {totalPages > 0 && (
+              <div className="flex justify-between items-center mt-5 pt-5 border-t border-gray-100">
+                <p className="text-sm text-gray-500">
+                  Halaman <span className="font-semibold text-gray-900">{currentPage}</span> dari <span className="font-semibold text-gray-900">{totalPages || 1}</span>
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">Sebelumnya</button>
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">Selanjutnya</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

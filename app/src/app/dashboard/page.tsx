@@ -15,11 +15,11 @@ export default async function DashboardPage() {
     .single()
 
   // Statistik dasar
-  let statsQuery = supabase.from('households').select('id', { count: 'exact', head: true })
+  let statsQuery = supabase.from('households').select('id, puskesmas_id, desa_id')
   if (appUser?.role === 'admin_puskesmas') {
     statsQuery = statsQuery.eq('puskesmas_id', appUser.puskesmas_id)
   }
-  const { count: totalKK } = await statsQuery
+  const { data: allHouseholds } = await statsQuery
 
   let surveyQuery = supabase.from('surveys').select('*, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel), ref_puskesmas(nama))')
     .eq('tahun', new Date().getFullYear())
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient 
       user={appUser} 
-      totalKK={totalKK || 0}
+      allHouseholds={allHouseholds || []}
       surveysData={surveysData || []}
       refPuskesmas={refPuskesmas || []}
       refDesa={refDesa || []}

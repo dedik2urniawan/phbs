@@ -7,7 +7,7 @@ import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplet
 
 interface Props {
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
-  totalKK: number
+  allHouseholds: any[]
   surveysData: any[]
   refPuskesmas: any[]
   refDesa: any[]
@@ -35,7 +35,7 @@ const NON_PHBS_INDICATORS = [
   { key: 'i17_remaja_putri_ttd', label: 'Remaja Putri TTD', icon: CheckCircle, color: '#10b981' },
 ]
 
-export default function DashboardClient({ user, totalKK, surveysData, refPuskesmas, refDesa }: Props) {
+export default function DashboardClient({ user, allHouseholds, surveysData, refPuskesmas, refDesa }: Props) {
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
   
@@ -112,7 +112,21 @@ export default function DashboardClient({ user, totalKK, surveysData, refPuskesm
   }, [filteredSurveys])
 
   const kkDisurvei = filteredSurveys.length
-  const totalKkFiltered = totalKK // Ideally, if filtering by Desa, totalKK should adjust, but totalKK passed from server is just global/puskesmas level. We'll use the ratio of surveyed vs registered as best effort.
+  
+  const totalKkFiltered = useMemo(() => {
+    return allHouseholds.filter(h => {
+      let match = true
+      if (isSuperAdmin && filterPuskesmas !== 'ALL') {
+        if (h.puskesmas_id !== filterPuskesmas) match = false
+      } else if (!isSuperAdmin) {
+        if (h.puskesmas_id !== user?.puskesmas_id) match = false
+      }
+      if (filterDesa !== 'ALL') {
+        if (h.desa_id !== filterDesa) match = false
+      }
+      return match
+    }).length
+  }, [allHouseholds, filterPuskesmas, filterDesa, isSuperAdmin, user?.puskesmas_id])
   
   const persentaseCapaian = kkDisurvei > 0 ? Math.round((capaianPhbsCount / kkDisurvei) * 100) : 0
   const persentaseDisurvei = totalKkFiltered > 0 ? Math.round((kkDisurvei / totalKkFiltered) * 100) : 0
@@ -122,26 +136,33 @@ export default function DashboardClient({ user, totalKK, surveysData, refPuskesm
     // Determine grouping: If Superadmin & ALL Puskesmas -> group by Puskesmas. Else -> group by Desa
     const groupByPuskesmas = isSuperAdmin && filterPuskesmas === 'ALL'
     
-    const groups: Record<string, any[]> = {}
-    
-    filteredSurveys.forEach(s => {
-      const gId = groupByPuskesmas ? s.households?.puskesmas_id : s.households?.desa_id
-      const gName = groupByPuskesmas ? s.households?.ref_puskesmas?.nama : s.households?.ref_desa?.desa_kel
-      const finalName = gName || 'Tidak Diketahui'
-      
-      if (!groups[finalName]) groups[finalName] = []
-      groups[finalName].push(s)
-    })
-
-    return Object.keys(groups).map(name => {
-      const stats = calculateIndicatorStats(groups[name], indicatorKey)
-      return {
-        name,
-        Persentase: stats.pct,
-        Numerator: stats.num,
-        Denominator: stats.den,
-      }
-    }).sort((a, b) => b.Persentase - a.Persentase)
+    if (groupByPuskesmas) {
+      // Exclude Dinkes
+      const validPuskesmas = refPuskesmas.filter(p => !p.nama.toLowerCase().includes('dinkes'))
+      return validPuskesmas.map(p => {
+        const surveysForP = filteredSurveys.filter(s => s.households?.puskesmas_id === p.id)
+        const stats = calculateIndicatorStats(surveysForP, indicatorKey)
+        return {
+          name: p.nama,
+          Persentase: stats.pct,
+          Numerator: stats.num,
+          Denominator: stats.den,
+        }
+      }).sort((a, b) => b.Persentase - a.Persentase)
+    } else {
+      // Group by Desa
+      const validDesa = availableDesa
+      return validDesa.map(d => {
+        const surveysForD = filteredSurveys.filter(s => s.households?.desa_id === d.id)
+        const stats = calculateIndicatorStats(surveysForD, indicatorKey)
+        return {
+          name: d.desa_kel,
+          Persentase: stats.pct,
+          Numerator: stats.num,
+          Denominator: stats.den,
+        }
+      }).sort((a, b) => b.Persentase - a.Persentase)
+    }
   }
 
   const renderFilterPanel = () => (
@@ -219,40 +240,46 @@ export default function DashboardClient({ user, totalKK, surveysData, refPuskesm
     </div>
   )
 
-  const renderChartSection = (indicators: any[], activeInd: string, setActiveInd: (key: string) => void) => {
+  const renderChartSection = (indicators: any[], activeInd: string, setActiveInd: (key: string) => void, titlePrefix: string) => {
     const chartData = getChartData(activeInd)
     const activeIndObj = indicators.find(i => i.key === activeInd)
 
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="border-b border-gray-100 bg-gray-50 p-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
-          <div className="flex gap-2">
-            {indicators.map(ind => (
-              <button
-                key={ind.key}
-                onClick={() => setActiveInd(ind.key)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activeInd === ind.key 
-                    ? 'bg-white shadow-sm text-gray-900 border border-gray-200' 
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-transparent'
-                }`}
-              >
-                {ind.label}
-              </button>
-            ))}
+      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden mt-8 transition-shadow hover:shadow-lg">
+        <div className="border-b border-gray-100 bg-gray-50/50 p-4 overflow-x-auto whitespace-nowrap scrollbar-hide">
+          <div className="flex gap-3">
+            {indicators.map(ind => {
+              const isActive = activeInd === ind.key;
+              return (
+                <button
+                  key={ind.key}
+                  onClick={() => setActiveInd(ind.key)}
+                  className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 border-2 ${
+                    isActive 
+                      ? 'text-white shadow-md transform scale-105' 
+                      : 'bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                  }`}
+                  style={isActive ? { backgroundColor: ind.color, borderColor: ind.color } : {}}
+                >
+                  {ind.label}
+                </button>
+              )
+            })}
           </div>
         </div>
         <div className="p-6">
-          <div className="mb-6 flex justify-between items-center">
+          <div className="mb-8 flex justify-between items-center bg-gray-50/50 p-4 rounded-xl border border-gray-100">
             <div>
-              <h3 className="text-lg font-bold text-gray-800">Grafik {activeIndObj?.label}</h3>
-              <p className="text-sm text-gray-500">Persentase capaian per wilayah ({isSuperAdmin && filterPuskesmas === 'ALL' ? 'Puskesmas' : 'Desa'})</p>
+              <h3 className="text-xl font-bold text-gray-800">{titlePrefix} {activeIndObj?.label}</h3>
+              <p className="text-sm text-gray-500 mt-1">Distribusi persentase capaian per wilayah ({isSuperAdmin && filterPuskesmas === 'ALL' ? 'Puskesmas' : 'Desa'})</p>
             </div>
-            <div className="text-right">
-              <p className="text-3xl font-bold" style={{ color: activeIndObj?.color }}>
-                {calculateIndicatorStats(filteredSurveys, activeInd).pct}%
-              </p>
-              <p className="text-xs text-gray-500 font-medium">Rata-rata Keseluruhan</p>
+            <div className="text-right flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-4xl font-black drop-shadow-sm transition-colors duration-500" style={{ color: activeIndObj?.color }}>
+                  {calculateIndicatorStats(filteredSurveys, activeInd).pct}%
+                </p>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mt-1">Rata-rata Keseluruhan</p>
+              </div>
             </div>
           </div>
           
@@ -283,20 +310,26 @@ export default function DashboardClient({ user, totalKK, surveysData, refPuskesm
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="bg-gray-900 text-white text-sm rounded-lg p-3 shadow-xl">
-                            <p className="font-bold mb-1">{label}</p>
-                            <p className="text-gray-300">Capaian: <span className="text-white font-semibold">{data.Persentase}%</span></p>
-                            <p className="text-gray-300 text-xs mt-1">Numerator: {data.Numerator}</p>
-                            <p className="text-gray-300 text-xs">Denominator: {data.Denominator}</p>
+                          <div className="bg-white text-gray-800 text-sm rounded-xl p-4 shadow-2xl border border-gray-100">
+                            <p className="font-bold text-gray-900 mb-2 border-b border-gray-100 pb-2">{label}</p>
+                            <p className="text-gray-600 mb-1 flex justify-between gap-4"><span>Capaian:</span> <span className="font-bold" style={{ color: activeIndObj?.color }}>{data.Persentase}%</span></p>
+                            <p className="text-gray-500 text-xs flex justify-between gap-4"><span>Numerator:</span> <span className="font-semibold text-gray-700">{data.Numerator}</span></p>
+                            <p className="text-gray-500 text-xs flex justify-between gap-4"><span>Denominator:</span> <span className="font-semibold text-gray-700">{data.Denominator}</span></p>
                           </div>
                         );
                       }
                       return null;
                     }}
                   />
-                  <Bar dataKey="Persentase" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                  <Bar 
+                    dataKey="Persentase" 
+                    radius={[6, 6, 0, 0]} 
+                    maxBarSize={60}
+                    animationDuration={1500}
+                    animationEasing="ease-out"
+                  >
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={activeIndObj?.color || '#3b82f6'} />
+                      <Cell key={`cell-${index}`} fill={activeIndObj?.color || '#3b82f6'} className="transition-all duration-300 hover:opacity-80 cursor-pointer" />
                     ))}
                   </Bar>
                 </BarChart>
@@ -404,14 +437,14 @@ export default function DashboardClient({ user, totalKK, surveysData, refPuskesm
       {activeTab === 'phbs' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {renderIndicatorScoreCards(PHBS_INDICATORS)}
-          {renderChartSection(PHBS_INDICATORS, activePhbsInd, setActivePhbsInd)}
+          {renderChartSection(PHBS_INDICATORS, activePhbsInd, setActivePhbsInd, "Grafik Capaian Indikator PHBS:")}
         </div>
       )}
 
       {activeTab === 'non-phbs' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {renderIndicatorScoreCards(NON_PHBS_INDICATORS)}
-          {renderChartSection(NON_PHBS_INDICATORS, activeNonPhbsInd, setActiveNonPhbsInd)}
+          {renderChartSection(NON_PHBS_INDICATORS, activeNonPhbsInd, setActiveNonPhbsInd, "Grafik Capaian Indikator Non PHBS:")}
         </div>
       )}
 

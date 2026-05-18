@@ -20,6 +20,30 @@ export default async function NewSurveyPage({ searchParams }: Props) {
     .eq('id', user.id)
     .single()
 
+  const isSuperAdmin = appUser?.role === 'superadmin'
+
+  // Superadmin: ambil semua puskesmas untuk dropdown
+  let allPuskesmas: { id: string; nama: string; kecamatan: string }[] = []
+  if (isSuperAdmin) {
+    const { data } = await supabase
+      .from('ref_puskesmas')
+      .select('id, nama, kecamatan')
+      .neq('nama', 'DINKES')
+      .order('nama')
+    allPuskesmas = data || []
+  }
+
+  // Admin puskesmas: ambil desa hanya dari PKM sendiri
+  let desaList: { id: string; desa_kel: string; puskesmas_id: string }[] = []
+  if (!isSuperAdmin && appUser?.puskesmas_id) {
+    const { data } = await supabase
+      .from('ref_desa')
+      .select('id, desa_kel, puskesmas_id')
+      .eq('puskesmas_id', appUser.puskesmas_id)
+      .order('desa_kel')
+    desaList = data || []
+  }
+
   // Ambil household jika ada
   let household = null
   if (householdId) {
@@ -32,12 +56,17 @@ export default async function NewSurveyPage({ searchParams }: Props) {
   }
 
   // Ambil daftar households untuk dipilih (jika tidak ada household_id)
-  const { data: householdListRaw } = await supabase
+  let householdsQuery = supabase
     .from('households')
-    .select('id, no_kk, nama_kk, ref_desa(desa_kel)')
-    .eq('puskesmas_id', appUser?.puskesmas_id)
+    .select('id, no_kk, nama_kk, puskesmas_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(1000)
+
+  if (!isSuperAdmin) {
+    householdsQuery = householdsQuery.eq('puskesmas_id', appUser?.puskesmas_id)
+  }
+
+  const { data: householdListRaw } = await householdsQuery
 
   // Normalize ref_desa dari array ke object
   const householdList = (householdListRaw || []).map(h => ({
@@ -50,6 +79,9 @@ export default async function NewSurveyPage({ searchParams }: Props) {
       appUser={appUser}
       initialHousehold={household}
       householdList={householdList || []}
+      isSuperAdmin={isSuperAdmin}
+      allPuskesmas={allPuskesmas}
+      initialDesaList={desaList}
     />
   )
 }
