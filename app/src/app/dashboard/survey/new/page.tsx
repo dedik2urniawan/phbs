@@ -72,6 +72,7 @@ export default async function NewSurveyPage({ searchParams }: Props) {
   const householdList = (householdListRaw || []).map(h => ({
     ...h,
     ref_desa: Array.isArray(h.ref_desa) ? (h.ref_desa[0] ?? null) : h.ref_desa,
+    ref_puskesmas: Array.isArray(h.ref_puskesmas) ? (h.ref_puskesmas[0] ?? null) : h.ref_puskesmas,
   }))
 
   return (

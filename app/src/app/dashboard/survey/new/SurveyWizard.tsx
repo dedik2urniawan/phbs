@@ -86,8 +86,9 @@ export default function SurveyWizard({
       const formatted = (hh || []).map(h => ({
         ...h,
         ref_desa: Array.isArray(h.ref_desa) ? (h.ref_desa[0] ?? null) : h.ref_desa,
+        ref_puskesmas: Array.isArray(h.ref_puskesmas) ? (h.ref_puskesmas[0] ?? null) : h.ref_puskesmas,
       }))
-      setHouseholds(formatted as Household[])
+      setHouseholds(formatted as unknown as Household[])
     } else {
       setDesaList([])
       const { data: hh } = await supabase
@@ -99,8 +100,9 @@ export default function SurveyWizard({
       const formatted = (hh || []).map(h => ({
         ...h,
         ref_desa: Array.isArray(h.ref_desa) ? (h.ref_desa[0] ?? null) : h.ref_desa,
+        ref_puskesmas: Array.isArray(h.ref_puskesmas) ? (h.ref_puskesmas[0] ?? null) : h.ref_puskesmas,
       }))
-      setHouseholds(formatted as Household[])
+      setHouseholds(formatted as unknown as Household[])
     }
   }, [supabase])
 
