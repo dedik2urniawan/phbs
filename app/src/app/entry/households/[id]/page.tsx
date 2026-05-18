@@ -41,7 +41,7 @@ export default async function EntryHouseholdDetailPage({ params }: { params: Pro
       </div>
       <div className="p-6 max-w-3xl mx-auto space-y-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h2 className="text-xl font-bold mb-4">{household.nama_kk}</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">{household.nama_kk}</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-gray-500">No. KK</p>
@@ -63,9 +63,17 @@ export default async function EntryHouseholdDetailPage({ params }: { params: Pro
           {members && members.length > 0 ? (
             <div className="space-y-3">
               {members.map(m => (
-                <div key={m.id} className="p-3 border border-gray-100 rounded-xl bg-gray-50">
-                  <p className="font-semibold text-sm">{m.nama}</p>
-                  <p className="text-xs text-gray-500">{m.hubungan_kk} • {m.jenis_kelamin}</p>
+                <div key={m.id} className="p-3 border border-gray-100 rounded-xl bg-gray-50 flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold text-sm text-gray-900">{m.nama}</p>
+                    <p className="text-xs text-gray-500">{m.hubungan_kk} • {m.jenis_kelamin}</p>
+                  </div>
+                  <Link 
+                    href={`/entry/households/${id}/members/${m.id}/edit`}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Edit
+                  </Link>
                 </div>
               ))}
             </div>

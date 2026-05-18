@@ -18,12 +18,14 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
   const [form, setForm] = useState({
     puskesmas_id: household.puskesmas_id || '',
     no_kk: household.no_kk || '',
+    nik_kk: household.nik_kk || '',
     nama_kk: household.nama_kk || '',
     desa_id: household.desa_id || '',
     alamat: household.alamat || '',
     rt: household.rt || '',
     rw: household.rw || '',
   })
+  const [nikInfo, setNikInfo] = useState<{ tgl_lahir: Date | null; jenis_kelamin: 'L' | 'P' | null } | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const isSuperAdmin = appUser.role === 'superadmin'
@@ -36,6 +38,15 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
     if (isSuperAdmin && !form.puskesmas_id) errs.puskesmas_id = 'Pilih Puskesmas'
     const kkResult = validateNoKK(form.no_kk)
     if (!kkResult.valid) errs.no_kk = kkResult.error!
+
+    if (form.nik_kk) {
+      const { validateNIK } = require('@/lib/validators/nik')
+      const nikResult = validateNIK(form.nik_kk)
+      if (!nikResult.valid) {
+        errs.nik_kk = nikResult.error!
+      }
+    }
+
     if (!form.nama_kk.trim()) errs.nama_kk = 'Nama KK wajib diisi'
     if (!form.desa_id) errs.desa_id = 'Pilih desa/kelurahan'
     if (!form.alamat.trim()) errs.alamat = 'Alamat wajib diisi'
@@ -56,6 +67,7 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
       puskesmas_id: form.puskesmas_id,
       desa_id: form.desa_id,
       no_kk: form.no_kk.replace(/\s/g, ''),
+      nik_kk: form.nik_kk ? form.nik_kk.replace(/\s/g, '') : null,
       nama_kk: form.nama_kk.trim(),
       alamat: form.alamat.trim(),
       rt: form.rt.trim(),
@@ -127,6 +139,47 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
               <label className="block text-sm font-medium text-gray-700 mb-1.5">No KK <span className="text-red-500">*</span></label>
               <input type="text" maxLength={16} inputMode="numeric" {...field('no_kk')} />
               {fieldErrors.no_kk && <p className="text-red-500 text-xs mt-1">{fieldErrors.no_kk}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">NIK Kepala Keluarga (Opsional)</label>
+              <input
+                type="text"
+                placeholder="16 digit NIK"
+                maxLength={16}
+                inputMode="numeric"
+                value={form.nik_kk}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '')
+                  setForm(prev => ({ ...prev, nik_kk: val }))
+                  if (val.length === 16) {
+                    const { validateNIK } = require('@/lib/validators/nik')
+                    const result = validateNIK(val)
+                    if (!result.valid) {
+                      setFieldErrors(prev => ({ ...prev, nik_kk: result.error! }))
+                      setNikInfo(null)
+                    } else {
+                      setFieldErrors(prev => { const n = {...prev}; delete n.nik_kk; return n })
+                      setNikInfo(result.info || null)
+                    }
+                  } else {
+                    setFieldErrors(prev => { const n = {...prev}; delete n.nik_kk; return n })
+                    setNikInfo(null)
+                  }
+                }}
+                className={`w-full border rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white text-gray-900 ${
+                  fieldErrors.nik_kk ? 'border-red-400 bg-red-50' : 
+                  nikInfo ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200'
+                }`}
+              />
+              {fieldErrors.nik_kk && (
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">⚠️ {fieldErrors.nik_kk}</p>
+              )}
+              {nikInfo && !fieldErrors.nik_kk && form.nik_kk.length === 16 && (
+                <p className="text-emerald-600 text-xs mt-1 flex items-center gap-1">
+                  ✅ NIK valid — {nikInfo.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}
+                  {nikInfo.tgl_lahir && `, lahir ${nikInfo.tgl_lahir.toLocaleDateString('id-ID')}`}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Nama Kepala Keluarga <span className="text-red-500">*</span></label>

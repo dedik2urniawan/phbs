@@ -41,12 +41,13 @@ const PEKERJAAN_OPTIONS = [
 
 interface Props {
   householdId: string
+  initialMembers?: FamilyMemberInput[]
   onDone: (members: FamilyMemberInput[]) => Promise<void>
   onSkip: () => void
 }
 
-export default function AddFamilyMemberForm({ householdId, onDone, onSkip }: Props) {
-  const [members, setMembers] = useState<FamilyMemberInput[]>([emptyMember()])
+export default function AddFamilyMemberForm({ householdId, initialMembers, onDone, onSkip }: Props) {
+  const [members, setMembers] = useState<FamilyMemberInput[]>(initialMembers || [emptyMember()])
   const [nikErrors, setNikErrors] = useState<Record<number, string>>({})
   const [nikInfos, setNikInfos] = useState<Record<number, { tgl_lahir: Date | null; jenis_kelamin: 'L' | 'P' | null }>>({})
   const [submitting, setSubmitting] = useState(false)

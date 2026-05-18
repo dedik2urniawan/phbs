@@ -89,6 +89,7 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
       if (hasBayi) reqKeys.push('i2_asi_eksklusif')
       reqKeys.push('i14_ibu_hamil')
       if (hasIbuHamil) reqKeys.push('i15_ibu_hamil_ttd')
+      if (hasRemajaP) reqKeys.push('i17_remaja_putri_ttd')
       
       return reqKeys.every(k => surveyKK[k as keyof SurveyIndikator] !== undefined)
     }
@@ -155,7 +156,7 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
       i11_cek_kesehatan: i11,
       i12_kunjungan_posyandu: i12,
       i13_pengunjung_posyandu: null,
-      i17_remaja_putri_ttd: null,
+      i17_remaja_putri_ttd: hasRemajaP ? (surveyKK.i17_remaja_putri_ttd ?? null) : null,
       catatan: catatan || null,
       skor_phbs: score.skor,
       denominator_phbs: score.denominator,
@@ -370,6 +371,8 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
                 <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
                   <span className="text-2xl">📋</span> Pertanyaan Level Rumah Tangga
                 </h2>
+
+                <h3 className="font-bold text-gray-700 mt-4 mb-3 pb-2 border-b">Indikator PHBS Inti</h3>
                 {renderBinaryQuestion("Menggunakan Air Bersih", "Apakah keluarga menggunakan sumber air bersih?", surveyKK.i4_air_bersih, v => setSurveyKK({...surveyKK, i4_air_bersih: v}))}
                 {renderBinaryQuestion("Menggunakan Jamban Sehat", "Apakah keluarga menggunakan jamban sehat leher angsa?", surveyKK.i6_jamban_sehat, v => setSurveyKK({...surveyKK, i6_jamban_sehat: v}))}
                 {renderBinaryQuestion("Pemberantasan Sarang Nyamuk (PSN)", "Apakah dilakukan PSN minimal seminggu sekali (3M Plus)?", surveyKK.i7_psn, v => setSurveyKK({...surveyKK, i7_psn: v}))}
@@ -378,8 +381,10 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
                 {hasBayi && renderBinaryQuestion("ASI Eksklusif", "Apakah bayi (0-6 bulan) mendapat ASI eksklusif?", surveyKK.i2_asi_eksklusif ?? undefined, v => setSurveyKK({...surveyKK, i2_asi_eksklusif: v}))}
                 {hasBalita && renderBinaryQuestion("Menimbang Balita", "Apakah balita ditimbang minimal 8x dalam setahun di Posyandu?", surveyKK.i3_menimbang_balita ?? undefined, v => setSurveyKK({...surveyKK, i3_menimbang_balita: v}))}
                 
+                <h3 className="font-bold text-gray-700 mt-6 mb-3 pb-2 border-b">Indikator GERMAS (Non-PHBS)</h3>
                 {renderBinaryQuestion("Ada Ibu Hamil", "Apakah ada anggota keluarga yang sedang hamil?", surveyKK.i14_ibu_hamil ?? undefined, v => setSurveyKK({...surveyKK, i14_ibu_hamil: v}))}
                 {hasIbuHamil && renderBinaryQuestion("Ibu Hamil Konsumsi TTD", "Apakah ibu hamil rutin mengonsumsi TTD?", surveyKK.i15_ibu_hamil_ttd ?? undefined, v => setSurveyKK({...surveyKK, i15_ibu_hamil_ttd: v}))}
+                {hasRemajaP && renderBinaryQuestion("Remaja Putri Konsumsi TTD", "Apakah remaja putri (12-18 th) rutin mengonsumsi Tablet Tambah Darah?", surveyKK.i17_remaja_putri_ttd ?? undefined, v => setSurveyKK({...surveyKK, i17_remaja_putri_ttd: v}))}
               </>
             )}
 
@@ -404,10 +409,17 @@ export default function SurveyWizard({ appUser, initialHousehold, householdList,
                         </div>
                       </div>
 
+                      {q.show_i5 || q.show_i8 || q.show_i9 || q.show_i10 ? (
+                        <h3 className="font-bold text-gray-700 mt-4 mb-3 pb-2 border-b">Indikator PHBS Inti</h3>
+                      ) : null}
                       {q.show_i5 && renderBinaryQuestion("Cuci Tangan Pakai Sabun", "Apakah mencuci tangan dengan sabun di air mengalir?", r.i5_cuci_tangan ?? undefined, v => updateArt('i5_cuci_tangan', v))}
                       {q.show_i8 && renderBinaryQuestion("Makan Sayur dan Buah", "Apakah makan sayur dan buah setiap hari?", r.i8_makan_sayur_buah ?? undefined, v => updateArt('i8_makan_sayur_buah', v))}
                       {q.show_i9 && renderBinaryQuestion("Aktivitas Fisik", "Apakah melakukan aktivitas fisik minimal 30 menit/hari?", r.i9_aktivitas_fisik ?? undefined, v => updateArt('i9_aktivitas_fisik', v))}
                       {q.show_i10 && renderBinaryQuestion("TIDAK Merokok", "Apakah ART ini TIDAK MEROKOK?", r.i10_tidak_merokok ?? undefined, v => updateArt('i10_tidak_merokok', v))}
+                      
+                      {q.show_ckg || q.show_posyandu ? (
+                        <h3 className="font-bold text-gray-700 mt-6 mb-3 pb-2 border-b">Indikator GERMAS (Non-PHBS)</h3>
+                      ) : null}
                       {q.show_ckg && renderBinaryQuestion("Cek Kesehatan Berkala", "Apakah melakukan cek kesehatan minimal 1x dalam 6 bulan? (GERMAS)", r.g_cek_kesehatan ?? undefined, v => updateArt('g_cek_kesehatan', v))}
                       {q.show_posyandu && renderBinaryQuestion("Kunjungan Posyandu", "Apakah hadir di posyandu bulan lalu? (GERMAS)", r.g_posyandu_hadir ?? undefined, v => updateArt('g_posyandu_hadir', v))}
                     </>

@@ -166,16 +166,16 @@ export function getARTQuestions(usia: number, jenis_kelamin: 'L' | 'P'): {
   show_i5: boolean   // Cuci Tangan (≥ 5 th)
   show_i8: boolean   // Makan Sayur (≥ 10 th)
   show_i9: boolean   // Aktivitas Fisik (≥ 10 th)
-  show_i10: boolean  // Tidak Merokok (semua)
-  show_ckg: boolean  // Cek Kesehatan GERMAS
-  show_posyandu: boolean  // Posyandu GERMAS
+  show_i10: boolean  // Tidak Merokok (≥ 10 th)
+  show_ckg: boolean  // Cek Kesehatan GERMAS (semua usia)
+  show_posyandu: boolean  // Posyandu GERMAS (semua usia)
 } {
   return {
     show_i5: usia >= 5,
     show_i8: usia >= 10,
     show_i9: usia >= 10,
-    show_i10: true,   // semua ART ditanya soal merokok
-    show_ckg: usia >= 15,
-    show_posyandu: usia < 5 || usia >= 60 || jenis_kelamin === 'P',
+    show_i10: usia >= 10,
+    show_ckg: true,
+    show_posyandu: true,
   }
 }

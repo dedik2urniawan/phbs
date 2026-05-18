@@ -14,6 +14,10 @@ interface Survey {
 }
 
 function calculateSkor(s: Survey) {
+  if (s.skor_phbs !== undefined && s.skor_phbs !== null && s.denominator_phbs) {
+    return Math.round((s.skor_phbs / s.denominator_phbs) * 100)
+  }
+  // Legacy fallback
   const boolKeys = ['i4_air_bersih','i5_cuci_tangan','i6_jamban_sehat','i7_psn',
     'i8_makan_sayur_buah','i9_aktivitas_fisik','i10_tidak_merokok','i11_cek_kesehatan',
     'i12_kunjungan_posyandu','i14_ibu_hamil','i16_remaja_putri']

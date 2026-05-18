@@ -6,6 +6,7 @@ export interface LocalHousehold {
   puskesmas_id: string
   desa_id: string
   no_kk: string
+  nik_kk: string | null
   nama_kk: string
   alamat: string
   rt: string
