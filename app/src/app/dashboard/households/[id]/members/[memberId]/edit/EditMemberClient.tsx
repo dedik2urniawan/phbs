@@ -89,7 +89,6 @@ export default function EditMemberClient({ member, householdId, nama_kk, basePat
       hubungan_kk: form.hubungan_kk,
       pendidikan: form.pendidikan || null,
       pekerjaan: form.pekerjaan || null,
-      updated_at: nowISO(),
     }
 
     try {
