@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { AppUser } from '@/lib/types'
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react'
+import LogoutModal from '@/components/LogoutModal'
+import { useState } from 'react'
 
 interface Props {
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
@@ -16,6 +18,7 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -111,7 +114,7 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
            </div>
         )}
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutModal(true)}
           title={isCollapsed ? "Keluar" : undefined}
           className={`w-full text-white/70 hover:text-white text-xs py-2 rounded-lg hover:bg-white/10 transition-all flex items-center justify-center gap-2 ${isCollapsed ? 'px-0' : ''}`}
         >
@@ -119,6 +122,15 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
           {!isCollapsed && <span>Keluar</span>}
         </button>
       </div>
+
+      <LogoutModal 
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
+        onConfirm={() => {
+          setShowLogoutModal(false)
+          handleLogout()
+        }}
+      />
     </div>
   )
 }

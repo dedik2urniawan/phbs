@@ -268,19 +268,30 @@ export default function LandingPage() {
           {/* Kategori PHBS */}
           <div className="mt-12 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-8">
             <h3 className="font-heading font-black text-gray-800 text-2xl mb-8 text-center">Kategori Capaian PHBS</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Sehat Pratama', range: '< 25%', color: 'bg-red-100 text-red-700 border-red-200' },
-                { label: 'Sehat Madya', range: '25-49%', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-                { label: 'Sehat Utama', range: '50-74%', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-                { label: 'Sehat Paripurna', range: '≥ 75%', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-              ].map(k => (
-                <div key={k.label} className={`border rounded-xl p-4 text-center ${k.color}`}>
-                  <p className="font-bold text-sm">{k.label}</p>
-                  <p className="text-3xl font-heading font-black mt-2">{k.range}</p>
-                  <p className="text-xs opacity-70 mt-1">indikator terpenuhi</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              <div className="border border-emerald-200 bg-emerald-100/50 rounded-2xl p-6 text-center shadow-sm relative overflow-hidden group hover:border-emerald-400 transition-colors">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-200/50 rounded-bl-full -mr-12 -mt-12 group-hover:scale-110 transition-transform"></div>
+                <div className="w-16 h-16 mx-auto bg-emerald-500 text-white rounded-full flex items-center justify-center text-3xl mb-4 shadow-sm relative z-10">
+                  🏡
                 </div>
-              ))}
+                <h4 className="font-heading font-black text-2xl text-emerald-800 mb-2">Rumah Sehat</h4>
+                <p className="text-4xl font-heading font-black text-emerald-600 mb-2">100%</p>
+                <p className="text-sm text-emerald-800/80 font-medium">
+                  Seluruh indikator PHBS yang relevan di rumah tangga terpenuhi dengan baik.
+                </p>
+              </div>
+
+              <div className="border border-red-200 bg-red-100/50 rounded-2xl p-6 text-center shadow-sm relative overflow-hidden group hover:border-red-400 transition-colors">
+                <div className="absolute top-0 left-0 w-24 h-24 bg-red-200/50 rounded-br-full -ml-12 -mt-12 group-hover:scale-110 transition-transform"></div>
+                <div className="w-16 h-16 mx-auto bg-red-500 text-white rounded-full flex items-center justify-center text-3xl mb-4 shadow-sm relative z-10">
+                  🏚️
+                </div>
+                <h4 className="font-heading font-black text-2xl text-red-800 mb-2">Rumah Tidak Sehat</h4>
+                <p className="text-4xl font-heading font-black text-red-600 mb-2">&lt; 100%</p>
+                <p className="text-sm text-red-800/80 font-medium">
+                  Masih terdapat satu atau lebih indikator PHBS yang belum terpenuhi di rumah tangga.
+                </p>
+              </div>
             </div>
           </div>
         </div>

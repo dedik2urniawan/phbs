@@ -1,8 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import DashboardSidebar from '@/components/DashboardSidebar'
 import { AppUser } from '@/lib/types'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 export default function DashboardLayoutWrapper({
   children,
@@ -12,6 +14,31 @@ export default function DashboardLayoutWrapper({
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
 }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const router = useRouter()
+  const supabase = createClient()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const resetTimeout = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    // 10 minutes timeout = 10 * 60 * 1000 = 600000 ms
+    timeoutRef.current = setTimeout(async () => {
+      await supabase.auth.signOut()
+      router.push('/login?mode=admin&session=expired')
+    }, 600000)
+  }
+
+  useEffect(() => {
+    // Set initial timeout
+    resetTimeout()
+
+    const events = ['mousemove', 'keydown', 'scroll', 'touchstart', 'click']
+    events.forEach(event => window.addEventListener(event, resetTimeout))
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      events.forEach(event => window.removeEventListener(event, resetTimeout))
+    }
+  }, [router, supabase])
 
   return (
     <div className="min-h-screen bg-gray-50 flex">

@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react'
 import { AppUser } from '@/lib/types'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
 import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby } from 'lucide-react'
+import WelcomeReminderModal from '@/components/WelcomeReminderModal'
 
 interface Props {
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
@@ -51,6 +52,17 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   
   const [activePhbsInd, setActivePhbsInd] = useState(PHBS_INDICATORS[0].key)
   const [activeNonPhbsInd, setActiveNonPhbsInd] = useState(NON_PHBS_INDICATORS[0].key)
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false)
+
+  // Welcome modal logic
+  React.useEffect(() => {
+    // Only show if user has not seen it this session and there are no sasaran data (or just always show once)
+    const hasSeenWelcome = sessionStorage.getItem('simphbs_welcome_seen')
+    if (!hasSeenWelcome) {
+      setShowWelcomeModal(true)
+      sessionStorage.setItem('simphbs_welcome_seen', 'true')
+    }
+  }, [])
 
   // Derived options
   const years = Array.from(new Set(surveysData.map(s => s.tahun).filter(Boolean))).sort().reverse()
@@ -410,6 +422,10 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
 
   return (
     <div className="p-8">
+      <WelcomeReminderModal 
+        isOpen={showWelcomeModal} 
+        onClose={() => setShowWelcomeModal(false)} 
+      />
       <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Selamat Datang 👋</h2>
