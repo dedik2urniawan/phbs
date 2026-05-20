@@ -251,49 +251,49 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
           </h3>
         </div>
         <div className="overflow-x-auto print-overflow-visible">
-          <table className="w-full text-left border-collapse border border-black print:text-[10px]">
+          <table className="w-full text-left border-collapse border-y border-gray-200 print:border-black print:text-[10px]">
             <thead>
-              <tr className="bg-gray-100 text-black text-center text-xs">
-                <th rowSpan={2} className="border border-black px-2 py-2">NO</th>
-                <th rowSpan={2} className="border border-black px-4 py-2 min-w-[120px]">{groupByPuskesmas ? 'PUSKESMAS' : 'DESA'}</th>
-                <th rowSpan={2} className="border border-black px-4 py-2">KETERANGAN</th>
+              <tr className="bg-gray-50 text-gray-800 text-center text-xs uppercase tracking-wider">
+                <th rowSpan={2} className="border border-gray-200 print:border-black px-2 py-3 font-bold">NO</th>
+                <th rowSpan={2} className="border border-gray-200 print:border-black px-4 py-3 min-w-[120px] font-bold">{groupByPuskesmas ? 'PUSKESMAS' : 'DESA'}</th>
+                <th rowSpan={2} className="border border-gray-200 print:border-black px-4 py-3 font-bold">KETERANGAN</th>
                 {PHBS_INDICATORS.map((ind, i) => (
-                  <th key={i} rowSpan={2} className="border border-black px-2 py-2 whitespace-pre-wrap leading-tight max-w-[80px]" style={{ backgroundColor: '#cfe2f3' }}>
+                  <th key={i} rowSpan={2} className="border border-gray-200 print:border-black px-2 py-2 whitespace-pre-wrap leading-tight max-w-[80px] bg-blue-50/50 text-blue-900 font-bold">
                     {ind.label}
                   </th>
                 ))}
-                <th colSpan={NON_PHBS_INDICATORS.length} className="border border-black px-2 py-2 bg-yellow-100">NON PHBS</th>
+                <th colSpan={NON_PHBS_INDICATORS.length} className="border border-gray-200 print:border-black px-2 py-2 bg-purple-50/50 text-purple-900 font-bold">NON PHBS</th>
               </tr>
-              <tr className="bg-gray-100 text-black text-center text-xs">
+              <tr className="bg-gray-50 text-gray-800 text-center text-xs uppercase tracking-wider">
                 {NON_PHBS_INDICATORS.map((ind, i) => (
-                  <th key={i} className="border border-black px-2 py-2 whitespace-pre-wrap leading-tight max-w-[80px]" style={{ backgroundColor: '#e2efda' }}>
+                  <th key={i} className="border border-gray-200 print:border-black px-2 py-2 whitespace-pre-wrap leading-tight max-w-[80px] bg-purple-50/50 text-purple-900 font-bold">
                     {ind.label}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="text-black text-sm print:text-[10px]">
+            <tbody className="text-gray-800 text-sm print:text-black print:text-[10px]">
               {detailRekapList.length > 0 ? detailRekapList.map((row, idx) => (
                 <React.Fragment key={idx}>
                   {/* Row TOTAL */}
-                  <tr>
-                    <td rowSpan={3} className="border border-black px-2 text-center">{idx + 1}</td>
-                    <td rowSpan={3} className="border border-black px-4 font-semibold">{row.name}</td>
-                    <td className="border border-black px-4 font-bold text-center">TOTAL</td>
-                    {row.phbsStats.map((s, i) => <td key={i} className="border border-black px-2 text-center">{row.totalKkTarget}</td>)}
-                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-black px-2 text-center">{row.totalKkTarget}</td>)}
+                  <tr className="hover:bg-gray-50/50 transition-colors">
+                    <td rowSpan={3} className="border border-gray-200 print:border-black px-2 text-center text-gray-500 font-medium">{idx + 1}</td>
+                    <td rowSpan={3} className="border border-gray-200 print:border-black px-4 font-bold text-gray-900 uppercase">{row.name}</td>
+                    <td className="border border-gray-200 print:border-black px-4 font-semibold text-center text-gray-600">TOTAL</td>
+                    {row.phbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{row.totalKkTarget}</td>)}
+                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{row.totalKkTarget}</td>)}
                   </tr>
                   {/* Row YG DI KAJI */}
-                  <tr>
-                    <td className="border border-black px-4 font-bold text-center">YG DI KAJI</td>
-                    {row.phbsStats.map((s, i) => <td key={i} className="border border-black px-2 text-center">{s.num}</td>)}
-                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-black px-2 text-center">{s.num}</td>)}
+                  <tr className="hover:bg-gray-50/50 transition-colors">
+                    <td className="border border-gray-200 print:border-black px-4 font-semibold text-center text-gray-600">YG DI KAJI</td>
+                    {row.phbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{s.num}</td>)}
+                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{s.num}</td>)}
                   </tr>
                   {/* Row % */}
-                  <tr className="bg-emerald-400 font-bold">
-                    <td className="border border-black px-4 text-center">%</td>
-                    {row.phbsStats.map((s, i) => <td key={i} className="border border-black px-2 text-center">{s.pct.toFixed(1).replace('.', ',')}</td>)}
-                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-black px-2 text-center">{s.pct.toFixed(1).replace('.', ',')}</td>)}
+                  <tr className="bg-emerald-50/60 print:bg-transparent font-bold">
+                    <td className="border border-gray-200 print:border-black px-4 text-center text-emerald-800 print:text-black">%</td>
+                    {row.phbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-700 print:text-black">{s.pct.toFixed(1).replace('.', ',')}</td>)}
+                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-700 print:text-black">{s.pct.toFixed(1).replace('.', ',')}</td>)}
                   </tr>
                 </React.Fragment>
               )) : (
