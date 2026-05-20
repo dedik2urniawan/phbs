@@ -139,15 +139,33 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
   // --- Download Template Excel ---
   const handleDownloadTemplate = () => {
     const wb = XLSX.utils.book_new()
-    const templateData = [
-      ['nama_puskesmas', 'nama_desa', 'jumlah_kk', 'tahun'],
-      ['DAMPIT', 'DAMPIT', 500, currentYear],
-      ['DAMPIT', 'SRIMULYO', 320, currentYear],
-    ]
+    
+    let desaToInclude = refDesa
+    if (!isSuperAdmin) {
+      desaToInclude = refDesa.filter(d => String(d.puskesmas_id) === String(appUser.puskesmas_id))
+    }
+
+    const headerRow = ['nama_puskesmas', 'nama_desa', 'jumlah_kk', 'tahun']
+    const dataRows = desaToInclude.map(d => {
+      const puskesmas = refPuskesmas.find(p => String(p.id) === String(d.puskesmas_id))
+      return [
+        puskesmas?.nama || '',
+        d.desa_kel,
+        '', 
+        currentYear
+      ]
+    })
+
+    const templateData = [headerRow, ...dataRows]
     const ws = XLSX.utils.aoa_to_sheet(templateData)
     ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 12 }, { wch: 8 }]
     XLSX.utils.book_append_sheet(wb, ws, 'Sasaran KK')
-    XLSX.writeFile(wb, `template_sasaran_kk_${currentYear}.xlsx`)
+    
+    const filename = isSuperAdmin 
+      ? `template_sasaran_kk_all_${currentYear}.xlsx` 
+      : `template_sasaran_kk_${appUser.ref_puskesmas?.nama?.toLowerCase().replace(/\s+/g, '_') || 'puskesmas'}_${currentYear}.xlsx`
+      
+    XLSX.writeFile(wb, filename)
   }
 
   // --- Parse Excel File ---
