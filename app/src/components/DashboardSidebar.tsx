@@ -37,6 +37,9 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
     { icon: '📋', label: 'Input Survei', href: '/dashboard/survey/new' },
     { icon: '📑', label: 'Rekap Laporan PHBS', href: '/dashboard/reports/rekap' },
     { icon: '📈', label: 'Analisis Laporan', href: '/dashboard/reports/analysis' },
+    ...(isSuperAdmin || user?.role === 'admin_puskesmas' ? [
+      { icon: '🎯', label: 'Input Sasaran KK', href: '/dashboard/sasaran' },
+    ] : []),
     ...(isSuperAdmin ? [
       { icon: '👥', label: 'Manajemen User', href: '/dashboard/users' },
     ] : []),

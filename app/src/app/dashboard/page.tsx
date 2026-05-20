@@ -21,8 +21,7 @@ export default async function DashboardPage() {
   }
   const { data: allHouseholds } = await statsQuery
 
-  let surveyQuery = supabase.from('surveys').select('*, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel), ref_puskesmas(nama))')
-    .eq('tahun', new Date().getFullYear())
+  let surveyQuery = supabase.from('surveys').select('*, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama))')
 
   if (appUser?.role === 'admin_puskesmas') {
     surveyQuery = surveyQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
@@ -33,7 +32,12 @@ export default async function DashboardPage() {
   const { data: refPuskesmas } = await supabase.from('ref_puskesmas').select('*').order('nama')
   const { data: refDesa } = await supabase.from('ref_desa').select('*').order('desa_kel')
 
-  const kkDisurvei = surveysData?.length || 0;
+  // Sasaran KK
+  let sasaranQuery = supabase.from('sasaran_kk').select('*')
+  if (appUser?.role === 'admin_puskesmas') {
+    sasaranQuery = sasaranQuery.eq('puskesmas_id', appUser.puskesmas_id)
+  }
+  const { data: sasaranData } = await sasaranQuery
 
   return (
     <DashboardClient 
@@ -42,6 +46,7 @@ export default async function DashboardPage() {
       surveysData={surveysData || []}
       refPuskesmas={refPuskesmas || []}
       refDesa={refDesa || []}
+      sasaranData={sasaranData || []}
     />
   )
 }

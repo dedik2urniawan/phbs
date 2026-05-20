@@ -11,6 +11,7 @@ interface Props {
   surveysData: any[]
   refPuskesmas: any[]
   refDesa: any[]
+  sasaranData?: any[]
 }
 
 const PHBS_INDICATORS = [
@@ -35,7 +36,7 @@ const NON_PHBS_INDICATORS = [
   { key: 'i17_remaja_putri_ttd', label: 'Remaja Putri TTD', icon: CheckCircle, color: '#10b981' },
 ]
 
-export default function DashboardClient({ user, allHouseholds, surveysData, refPuskesmas, refDesa }: Props) {
+export default function DashboardClient({ user, allHouseholds, surveysData, refPuskesmas, refDesa, sasaranData = [] }: Props) {
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
   
@@ -46,6 +47,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   const [filterYear, setFilterYear] = useState<number>(currentYear)
   const [filterPuskesmas, setFilterPuskesmas] = useState<string>('ALL')
   const [filterDesa, setFilterDesa] = useState<string>('ALL')
+  const [activeMetadataChart, setActiveMetadataChart] = useState<'progress' | 'capaian'>('progress')
   
   const [activePhbsInd, setActivePhbsInd] = useState(PHBS_INDICATORS[0].key)
   const [activeNonPhbsInd, setActiveNonPhbsInd] = useState(NON_PHBS_INDICATORS[0].key)
@@ -112,8 +114,28 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   }, [filteredSurveys])
 
   const kkDisurvei = filteredSurveys.length
-  
-  const totalKkFiltered = useMemo(() => {
+
+  // Sasaran KK filtered — sum of jumlah_kk matching current filters & year
+  const sasaranFiltered = useMemo(() => {
+    return sasaranData.filter(s => {
+      if (s.tahun !== filterYear) return false
+      if (isSuperAdmin && filterPuskesmas !== 'ALL') {
+        if (s.puskesmas_id !== filterPuskesmas) return false
+      } else if (!isSuperAdmin) {
+        if (s.puskesmas_id !== user?.puskesmas_id) return false
+      }
+      if (filterDesa !== 'ALL') {
+        if (s.desa_id !== filterDesa) return false
+      }
+      return true
+    })
+  }, [sasaranData, filterYear, filterPuskesmas, filterDesa, isSuperAdmin, user?.puskesmas_id])
+
+  const totalSasaranKK = useMemo(() => sasaranFiltered.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0), [sasaranFiltered])
+  const hasSasaran = totalSasaranKK > 0
+
+  // Fallback total KK (from households) — only used in persentase if no sasaran
+  const totalKkHouseholds = useMemo(() => {
     return allHouseholds.filter(h => {
       let match = true
       if (isSuperAdmin && filterPuskesmas !== 'ALL') {
@@ -127,9 +149,50 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
       return match
     }).length
   }, [allHouseholds, filterPuskesmas, filterDesa, isSuperAdmin, user?.puskesmas_id])
+
+  // Use sasaran if available, else use households count
+  const totalKkFiltered = hasSasaran ? totalSasaranKK : totalKkHouseholds
   
   const persentaseCapaian = kkDisurvei > 0 ? Math.round((capaianPhbsCount / kkDisurvei) * 100) : 0
   const persentaseDisurvei = totalKkFiltered > 0 ? Math.round((kkDisurvei / totalKkFiltered) * 100) : 0
+
+  // Metadata chart data — Progress Survey or Capaian PHBS by desa/puskesmas
+  const getMetadataChartData = (type: 'progress' | 'capaian') => {
+    const groupByPuskesmas = isSuperAdmin && filterPuskesmas === 'ALL'
+    
+    if (groupByPuskesmas) {
+      return refPuskesmas.filter(p => !p.nama.toLowerCase().includes('dinkes')).map(p => {
+        const surveysForP = filteredSurveys.filter(s => s.households?.puskesmas_id === p.id)
+        const sasaranForP = sasaranData.filter(s => s.puskesmas_id === p.id && s.tahun === filterYear)
+        const totalSas = sasaranForP.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
+        if (type === 'progress') {
+          const pct = totalSas > 0 ? Math.round((surveysForP.length / totalSas) * 100) : (surveysForP.length > 0 ? 100 : 0)
+          return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Sasaran: totalSas }
+        } else {
+          const sehat = surveysForP.filter(s => s.is_rt_sehat).length
+          const pct = surveysForP.length > 0 ? Math.round((sehat / surveysForP.length) * 100) : 0
+          return { name: p.nama, Persentase: pct, Sehat: sehat, Total: surveysForP.length }
+        }
+      }).sort((a, b) => b.Persentase - a.Persentase)
+    } else {
+      const validDesa = filterPuskesmas !== 'ALL' 
+        ? refDesa.filter(d => d.puskesmas_id === filterPuskesmas)
+        : refDesa.filter(d => !isSuperAdmin ? d.puskesmas_id === user?.puskesmas_id : true)
+      return validDesa.map(d => {
+        const surveysForD = filteredSurveys.filter(s => s.households?.desa_id === d.id)
+        const sasaranForD = sasaranData.filter(s => s.desa_id === d.id && s.tahun === filterYear)
+        const totalSas = sasaranForD.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
+        if (type === 'progress') {
+          const pct = totalSas > 0 ? Math.round((surveysForD.length / totalSas) * 100) : (surveysForD.length > 0 ? 100 : 0)
+          return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Sasaran: totalSas }
+        } else {
+          const sehat = surveysForD.filter(s => s.is_rt_sehat).length
+          const pct = surveysForD.length > 0 ? Math.round((sehat / surveysForD.length) * 100) : 0
+          return { name: d.desa_kel, Persentase: pct, Sehat: sehat, Total: surveysForD.length }
+        }
+      }).sort((a, b) => b.Persentase - a.Persentase)
+    }
+  }
 
   // Chart Data preparation
   const getChartData = (indicatorKey: string) => {
@@ -386,11 +449,30 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
       {/* Tab Contents */}
       {activeTab === 'metadata' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Score Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Total KK Sasaran */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-bl-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              <div className="p-5 relative">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-2xl mb-4 shadow-sm">🏠</div>
+                <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Sasaran KK {filterYear}</p>
+                {hasSasaran ? (
+                  <>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">{totalSasaranKK.toLocaleString('id')}</p>
+                    <p className="text-gray-400 text-xs mt-1 font-medium">KK sasaran survei</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-3xl font-bold text-gray-300 mt-1">–</p>
+                    <p className="text-amber-500 text-xs mt-1 font-medium flex items-center gap-1">⚠️ Sasaran belum diinput</p>
+                  </>
+                )}
+              </div>
+            </div>
             {[
-              { label: 'Total KK Terdaftar', value: totalKkFiltered.toLocaleString('id'), icon: '🏠', color: 'from-emerald-500 to-teal-600', sub: 'Rumah tangga' },
               { label: `KK Disurvei ${filterYear}`, value: kkDisurvei.toLocaleString('id'), icon: '📋', color: 'from-blue-500 to-indigo-600', sub: kkDisurvei === 0 ? 'Belum ada data' : 'Keluarga' },
-              { label: 'Target Survei', value: `${persentaseDisurvei}%`, icon: '🎯', color: 'from-amber-500 to-orange-600', sub: 'Dari total KK' },
+              { label: 'Target Survei', value: hasSasaran ? `${persentaseDisurvei}%` : '–', icon: '🎯', color: 'from-amber-500 to-orange-600', sub: hasSasaran ? 'Dari total sasaran KK' : 'Sasaran belum diinput' },
               { label: 'Capaian PHBS', value: `${persentaseCapaian}%`, icon: '📈', color: 'from-purple-500 to-pink-600', sub: 'Rumah Sehat' },
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative group">
@@ -400,20 +482,22 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
                     {stat.icon}
                   </div>
                   <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide">{stat.label}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                  <p className={`text-3xl font-bold mt-1 ${stat.value === '–' ? 'text-gray-300' : 'text-gray-900'}`}>{stat.value}</p>
                   <p className="text-gray-400 text-xs mt-1 font-medium">{stat.sub}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          {/* Aksi Cepat */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
             <h3 className="text-gray-800 font-semibold mb-4">Aksi Cepat</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {[
-                { icon: '➕', label: 'Tambah Data KK', desc: 'Input rumah tangga baru', href: '/dashboard/households/new', color: 'emerald' },
-                { icon: '📝', label: 'Input Survei PHBS', desc: 'Isi survei rumah tangga', href: '/dashboard/survey/new', color: 'blue' },
-                { icon: '📊', label: 'Lihat Laporan', desc: 'Rekap & visualisasi data', href: '/dashboard/reports/rekap', color: 'purple' },
+                { icon: '➕', label: 'Tambah Data KK', desc: 'Input rumah tangga baru', href: '/dashboard/households/new' },
+                { icon: '📝', label: 'Input Survei PHBS', desc: 'Isi survei rumah tangga', href: '/dashboard/survey/new' },
+                { icon: '🎯', label: 'Input Sasaran KK', desc: 'Set target survei per desa', href: '/dashboard/sasaran' },
+                { icon: '📊', label: 'Lihat Laporan', desc: 'Rekap & visualisasi data', href: '/dashboard/reports/rekap' },
               ].map((action) => (
                 <a
                   key={action.href}
@@ -429,6 +513,85 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
                   </div>
                 </a>
               ))}
+            </div>
+          </div>
+
+          {/* Metadata Charts */}
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+            <div className="border-b border-gray-100 bg-gray-50/50 p-4 flex items-center justify-between">
+              <h3 className="font-bold text-gray-800 text-sm">Visualisasi Metadata Survey</h3>
+              <div className="flex gap-2">
+                {[
+                  { id: 'progress', label: '📊 Progress Survey', color: '#3b82f6' },
+                  { id: 'capaian', label: '🏆 Capaian PHBS', color: '#10b981' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveMetadataChart(tab.id as any)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all border-2 ${
+                      activeMetadataChart === tab.id
+                        ? 'text-white shadow-md'
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                    }`}
+                    style={activeMetadataChart === tab.id ? { backgroundColor: tab.color, borderColor: tab.color } : {}}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {activeMetadataChart === 'progress' ? 'Progress Survey: KK Disurvei / Total Sasaran KK' : 'Capaian PHBS: % Rumah Tangga Sehat'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">Distribusi per {isSuperAdmin && filterPuskesmas === 'ALL' ? 'Puskesmas' : 'Desa'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-black" style={{ color: activeMetadataChart === 'progress' ? '#3b82f6' : '#10b981' }}>
+                    {activeMetadataChart === 'progress' ? `${persentaseDisurvei}%` : `${persentaseCapaian}%`}
+                  </p>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Rata-rata Keseluruhan</p>
+                </div>
+              </div>
+              {(() => {
+                const chartData = getMetadataChartData(activeMetadataChart)
+                const chartColor = activeMetadataChart === 'progress' ? '#3b82f6' : '#10b981'
+                return chartData.length > 0 ? (
+                  <div className="h-[360px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 11 }} angle={-40} textAnchor="end" interval={0} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} domain={[0, 100]} tickFormatter={v => `${v}%`} />
+                        <RechartsTooltip
+                          cursor={{ fill: '#f3f4f6' }}
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const d = payload[0].payload
+                              return (
+                                <div className="bg-white text-gray-800 text-sm rounded-xl p-4 shadow-2xl border border-gray-100">
+                                  <p className="font-bold mb-2 border-b border-gray-100 pb-1">{label}</p>
+                                  <p className="flex justify-between gap-4"><span>Capaian:</span> <span className="font-bold" style={{ color: chartColor }}>{d.Persentase}%</span></p>
+                                  {activeMetadataChart === 'progress' && <p className="flex justify-between gap-4 text-xs text-gray-500 mt-1"><span>Disurvei / Sasaran:</span> <span>{d.Disurvei} / {d.Sasaran || 'N/A'}</span></p>}
+                                  {activeMetadataChart === 'capaian' && <p className="flex justify-between gap-4 text-xs text-gray-500 mt-1"><span>Sehat / Total:</span> <span>{d.Sehat} / {d.Total}</span></p>}
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
+                        <Bar dataKey="Persentase" radius={[6, 6, 0, 0]} maxBarSize={60} animationDuration={1200} animationEasing="ease-out">
+                          {chartData.map((_, i) => <Cell key={i} fill={chartColor} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-40 flex items-center justify-center text-gray-400 text-sm">Belum ada data survei untuk filter ini.</div>
+                )
+              })()}
             </div>
           </div>
         </div>

@@ -1,27 +1,41 @@
 {
-  "name": "SIM-PHBS",
+  "id": "/",
+  "name": "SIM-PHBS Kabupaten Malang",
   "short_name": "SIM-PHBS",
-  "description": "Sistem Informasi Manajemen PHBS Kabupaten Malang",
-  "start_url": "/dashboard",
+  "description": "Sistem Informasi Manajemen PHBS Kabupaten Malang — Platform survei offline-first untuk 39 Puskesmas",
+  "start_url": "/entry",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#064e3b",
   "theme_color": "#059669",
   "orientation": "portrait-primary",
+  "lang": "id",
   "icons": [
     {
       "src": "/promkes.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/promkes.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/promkes.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/promkes.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "screenshots": [],
   "categories": ["health", "government"],
-  "lang": "id"
+  "prefer_related_applications": false
 }
