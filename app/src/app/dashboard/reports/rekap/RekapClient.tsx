@@ -248,17 +248,20 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
                     {/* Expanded ART Rows */}
                     {expandedRows[s.id] && s.survey_art_responses && s.survey_art_responses.length > 0 && (
                       <tr className="bg-gray-50/50">
-                        <td colSpan={14} className="px-8 py-4">
+                        <td colSpan={18} className="px-8 py-4">
                           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <table className="w-full text-xs text-left">
                               <thead className="bg-gray-100/80 text-gray-600">
                                 <tr>
                                   <th className="px-4 py-2">Nama ART</th>
                                   <th className="px-4 py-2">NIK / Hub. KK</th>
+                                  <th className="px-2 py-2 text-center" title="Persalinan Nakes">Persalinan</th>
+                                  <th className="px-2 py-2 text-center" title="ASI Eksklusif">ASI</th>
+                                  <th className="px-2 py-2 text-center" title="Menimbang Balita">Timbang</th>
                                   <th className="px-2 py-2 text-center" title="Cuci Tangan">CTPS</th>
                                   <th className="px-2 py-2 text-center" title="Makan Sayur Buah">Sayur</th>
                                   <th className="px-2 py-2 text-center" title="Aktivitas Fisik">Aktifitas</th>
-                                  <th className="px-2 py-2 text-center" title="Tidak Merokok">Tdk Merokok</th>
+                                  <th className="px-2 py-2 text-center" title="Tidak Merokok">Tdk Rokok</th>
                                   <th className="px-2 py-2 text-center" title="Cek Kesehatan">Cek Kes.</th>
                                   <th className="px-2 py-2 text-center" title="Posyandu">Posyandu</th>
                                 </tr>
@@ -268,6 +271,9 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
                                   <tr key={art.id} className="hover:bg-gray-50">
                                     <td className="px-4 py-2 font-medium">{art.family_members?.nama || '-'}</td>
                                     <td className="px-4 py-2 text-gray-500">{art.family_members?.nik || '-'}<br/><span className="text-[10px] text-gray-400">{art.family_members?.hubungan_kk || ''}</span></td>
+                                    <td className="px-2 py-2 text-center">{art.i1_persalinan_nakes !== null && art.i1_persalinan_nakes !== undefined ? formatBool(art.i1_persalinan_nakes) : <span className="text-gray-200 text-xs">N/A</span>}</td>
+                                    <td className="px-2 py-2 text-center">{art.i2_asi_eksklusif !== null && art.i2_asi_eksklusif !== undefined ? formatBool(art.i2_asi_eksklusif) : <span className="text-gray-200 text-xs">N/A</span>}</td>
+                                    <td className="px-2 py-2 text-center">{art.i3_menimbang_balita !== null && art.i3_menimbang_balita !== undefined ? formatBool(art.i3_menimbang_balita) : <span className="text-gray-200 text-xs">N/A</span>}</td>
                                     <td className="px-2 py-2 text-center">{formatBool(art.i5_cuci_tangan)}</td>
                                     <td className="px-2 py-2 text-center">{formatBool(art.i8_makan_sayur_buah)}</td>
                                     <td className="px-2 py-2 text-center">{formatBool(art.i9_aktivitas_fisik)}</td>
