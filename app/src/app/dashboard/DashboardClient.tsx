@@ -166,7 +166,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
         const sasaranForP = sasaranData.filter(s => s.puskesmas_id === p.id && s.tahun === filterYear)
         const totalSas = sasaranForP.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
         if (type === 'progress') {
-          const pct = totalSas > 0 ? Math.round((surveysForP.length / totalSas) * 100) : (surveysForP.length > 0 ? 100 : 0)
+          const pct = totalSas > 0 ? Math.round((surveysForP.length / totalSas) * 100) : 0
           return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Sasaran: totalSas }
         } else {
           const sehat = surveysForP.filter(s => s.is_rt_sehat).length
@@ -183,7 +183,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
         const sasaranForD = sasaranData.filter(s => s.desa_id === d.id && s.tahun === filterYear)
         const totalSas = sasaranForD.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
         if (type === 'progress') {
-          const pct = totalSas > 0 ? Math.round((surveysForD.length / totalSas) * 100) : (surveysForD.length > 0 ? 100 : 0)
+          const pct = totalSas > 0 ? Math.round((surveysForD.length / totalSas) * 100) : 0
           return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Sasaran: totalSas }
         } else {
           const sehat = surveysForD.filter(s => s.is_rt_sehat).length

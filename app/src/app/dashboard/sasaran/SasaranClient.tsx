@@ -350,7 +350,7 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Tahun</label>
                   <select value={formTahun} onChange={e => setFormTahun(Number(e.target.value))}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                     {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
@@ -358,7 +358,7 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 mb-1">Puskesmas <span className="text-red-500">*</span></label>
                     <select value={formPuskesmas} onChange={e => { setFormPuskesmas(e.target.value); setFormDesa('') }}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
                       <option value="">-- Pilih Puskesmas --</option>
                       {refPuskesmas.map(p => <option key={p.id} value={p.id}>{p.nama}</option>)}
                     </select>
@@ -368,7 +368,7 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Desa / Kelurahan <span className="text-red-500">*</span></label>
                   <select value={formDesa} onChange={e => setFormDesa(e.target.value)}
                     disabled={!formPuskesmas}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
                     <option value="">-- Pilih Desa --</option>
                     {availableDesa.map(d => <option key={d.id} value={d.id}>{d.desa_kel}</option>)}
                   </select>
@@ -377,13 +377,13 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Jumlah KK Sasaran <span className="text-red-500">*</span></label>
                   <input type="number" min="0" value={formJumlah} onChange={e => setFormJumlah(e.target.value)}
                     placeholder="Contoh: 500"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Keterangan (opsional)</label>
                   <input type="text" value={formKeterangan} onChange={e => setFormKeterangan(e.target.value)}
                     placeholder="Sumber data, dll."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
                 </div>
                 {formMessage && (
                   <div className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${

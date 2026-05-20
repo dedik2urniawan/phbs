@@ -32,6 +32,13 @@ export default async function RekapLaporanPage({ searchParams }: { searchParams:
   const { data: puskesmasList } = await supabase.from('ref_puskesmas').select('id, nama').order('nama')
   const { data: desaList } = await supabase.from('ref_desa').select('id, puskesmas_id, desa_kel').order('desa_kel')
 
+  // Fetch sasaran_kk for calculation of TARGET / TOTAL
+  let sasaranQuery = supabase.from('sasaran_kk').select('*').eq('tahun', selectedTahun)
+  if (appUser?.role !== 'superadmin' && appUser?.puskesmas_id) {
+    sasaranQuery = sasaranQuery.eq('puskesmas_id', appUser.puskesmas_id)
+  }
+  const { data: sasaranData } = await sasaranQuery
+
   // Generate available years (e.g., from 2025 to currentYear + 1)
   const availableYears = Array.from({ length: Math.max(2, currentYear - 2025 + 2) }, (_, i) => 2025 + i)
 
@@ -48,7 +55,8 @@ export default async function RekapLaporanPage({ searchParams }: { searchParams:
         appUser={appUser as any} 
         surveysData={surveysData || []} 
         puskesmasList={puskesmasList || []} 
-        desaList={desaList || []} 
+        desaList={desaList || []}
+        sasaranData={sasaranData || []} 
         selectedTahun={selectedTahun}
         availableYears={availableYears}
       />
