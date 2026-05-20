@@ -99,7 +99,7 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
   
   const detailRekapList = useMemo(() => {
     const groupByPuskesmas = isSuperAdmin && selectedPuskesmas === 'all'
-    const entities = groupByPuskesmas ? puskesmasList.filter(p => !p.nama.toLowerCase().includes('dinkes')) : filteredDesa
+    const entities = groupByPuskesmas ? puskesmasList.filter(p => p.nama && !p.nama.toLowerCase().includes('dinkes')) : filteredDesa
     
     return entities.map(entity => {
       // Find surveys
@@ -148,7 +148,7 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
   // --- Aggregation logic for Table 2 (Rumah Sehat) ---
   const rumahSehatList = useMemo(() => {
     const groupByPuskesmas = isSuperAdmin && selectedPuskesmas === 'all'
-    const entities = groupByPuskesmas ? puskesmasList.filter(p => !p.nama.toLowerCase().includes('dinkes')) : filteredDesa
+    const entities = groupByPuskesmas ? puskesmasList.filter(p => p.nama && !p.nama.toLowerCase().includes('dinkes')) : filteredDesa
     
     return entities.map(entity => {
       const entitySurveys = filteredSurveys.filter(s => 
