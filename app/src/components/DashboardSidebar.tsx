@@ -31,19 +31,15 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
 
-  const menuItems = [
+  const baseMenuItems = [
     { icon: '📊', label: 'Dashboard', href: '/dashboard' },
     { icon: '🏠', label: 'Data Rumah Tangga', href: '/dashboard/households' },
     { icon: '📋', label: 'Input Survei', href: '/dashboard/survey/new' },
     { icon: '📑', label: 'Rekap Laporan PHBS', href: '/dashboard/reports/rekap' },
     { icon: '📈', label: 'Analisis Laporan', href: '/dashboard/reports/analysis' },
-    ...(isSuperAdmin || user?.role === 'admin_puskesmas' ? [
-      { icon: '🎯', label: 'Input Sasaran KK', href: '/dashboard/sasaran' },
-    ] : []),
-    ...(isSuperAdmin ? [
-      { icon: '👥', label: 'Manajemen User', href: '/dashboard/users' },
-    ] : []),
   ]
+
+  const canAccessSasaran = isSuperAdmin || user?.role === 'admin_puskesmas'
 
   return (
     <div className={`fixed inset-y-0 left-0 transition-all duration-300 bg-gradient-to-b from-emerald-900 to-teal-800 shadow-xl z-50 flex flex-col ${isCollapsed ? 'w-20' : 'w-64'}`}>
@@ -69,9 +65,8 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
       </div>
 
       <nav className="p-3 flex-1 overflow-y-auto space-y-1">
-        {menuItems.map((item) => {
+        {baseMenuItems.map((item) => {
           const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)
-          
           return (
             <a
               key={item.href}
@@ -88,6 +83,41 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
             </a>
           )
         })}
+        {canAccessSasaran && (() => {
+          const href = '/dashboard/sasaran'
+          const isActive = pathname?.startsWith(href)
+          return (
+            <a
+              key={href}
+              href={href}
+              title={isCollapsed ? 'Input Sasaran KK' : undefined}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+              } ${isCollapsed ? 'justify-center' : ''}`}
+            >
+              <span className="text-lg">🎯</span>
+              {!isCollapsed && <span className="whitespace-nowrap">Input Sasaran KK</span>}
+            </a>
+          )
+        })()}
+        {isSuperAdmin && (() => {
+          const href = '/dashboard/users'
+          const isActive = pathname?.startsWith(href)
+          return (
+            <a
+              key={href}
+              href={href}
+              title={isCollapsed ? 'Manajemen User' : undefined}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+              } ${isCollapsed ? 'justify-center' : ''}`}
+            >
+              <span className="text-lg">👥</span>
+              {!isCollapsed && <span className="whitespace-nowrap">Manajemen User</span>}
+            </a>
+          )
+        })()}
+
       </nav>
 
       <div className="p-4 border-t border-white/10">
