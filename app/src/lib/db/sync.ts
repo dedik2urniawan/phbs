@@ -30,7 +30,7 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
       await offlineDB.sync_queue.delete(item.id!)
       synced++
     } catch (err) {
-      console.error(`Sync error [${item.table_name}/${item.record_id}]:`, err)
+      console.error(`Sync error [${item.table_name}/${item.record_id}]:`, (err as any)?.message || JSON.stringify(err) || err)
       await offlineDB.sync_queue.update(item.id!, { retries: item.retries + 1 })
       errors++
     }

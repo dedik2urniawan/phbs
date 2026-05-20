@@ -93,15 +93,9 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
 
       // Pre-fill KK indicators from existing survey
       setSurveyKK({
-        i1_persalinan_nakes: survey.i1_persalinan_nakes as boolean | null ?? null,
-        i2_asi_eksklusif: survey.i2_asi_eksklusif as boolean | null ?? null,
-        i3_menimbang_balita: survey.i3_menimbang_balita as boolean | null ?? null,
         i4_air_bersih: (survey.i4_air_bersih as boolean) ?? false,
         i6_jamban_sehat: (survey.i6_jamban_sehat as boolean) ?? false,
         i7_psn: (survey.i7_psn as boolean) ?? false,
-        i14_ibu_hamil: (survey.i14_ibu_hamil as boolean) ?? false,
-        i15_ibu_hamil_ttd: survey.i15_ibu_hamil_ttd as boolean | null ?? null,
-        i16_remaja_putri: (survey.i16_remaja_putri as boolean) ?? false,
       })
 
       // Try to load existing ART responses
@@ -122,12 +116,18 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
             existingArt[r.family_member_id] = {
               id: r.id, // KEEP ID
               family_member_id: r.family_member_id,
+              i1_persalinan_nakes: r.i1_persalinan_nakes ?? undefined,
+              i2_asi_eksklusif: r.i2_asi_eksklusif ?? undefined,
+              i3_menimbang_balita: r.i3_menimbang_balita ?? undefined,
               i5_cuci_tangan: r.i5_cuci_tangan ?? undefined,
               i8_makan_sayur_buah: r.i8_makan_sayur_buah ?? undefined,
               i9_aktivitas_fisik: r.i9_aktivitas_fisik ?? undefined,
               i10_tidak_merokok: r.i10_tidak_merokok ?? undefined,
               g_cek_kesehatan: r.g_cek_kesehatan ?? undefined,
               g_posyandu_hadir: r.g_posyandu_hadir ?? undefined,
+              g_ibu_hamil: r.g_ibu_hamil ?? undefined,
+              g_ibu_hamil_ttd: r.g_ibu_hamil_ttd ?? undefined,
+              g_remaja_putri_ttd: r.g_remaja_putri_ttd ?? undefined,
             }
           })
         }
@@ -143,37 +143,35 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
     load()
   }, [household.id, survey.id])
 
-  const hasBalita = members.some(m => hitungUsia(m.tgl_lahir) < 5)
-  const hasBayi = members.some(m => hitungUsia(m.tgl_lahir) === 0)
-  const hasIbuHamil = surveyKK.i14_ibu_hamil === true
-  const hasRemajaP = members.some(m => {
-    const u = hitungUsia(m.tgl_lahir)
-    return m.jenis_kelamin === 'P' && u >= 12 && u <= 18
-  })
+  // Usia dkk dihandle di dalam loop ART
 
   const totalSteps = members.length > 0 ? members.length + 2 : 2
   const progress = Math.round((step / (totalSteps - 1)) * 100)
 
+  const has_bayi_1_tahun = members.some(m => hitungUsia(m.tgl_lahir) <= 1)
+
   const isStepValid = () => {
     if (step === 0) {
       const reqKeys: (keyof SurveyIndikator)[] = ['i4_air_bersih', 'i6_jamban_sehat', 'i7_psn']
-      if (hasBalita) { reqKeys.push('i1_persalinan_nakes', 'i3_menimbang_balita') }
-      if (hasBayi) reqKeys.push('i2_asi_eksklusif')
-      reqKeys.push('i14_ibu_hamil')
-      if (hasIbuHamil) reqKeys.push('i15_ibu_hamil_ttd')
       return reqKeys.every(k => surveyKK[k] !== undefined && surveyKK[k] !== null)
     }
     if (step > 0 && step <= members.length) {
       const m = members[step - 1]
-      const q = getARTQuestions(hitungUsia(m.tgl_lahir), m.jenis_kelamin)
+      const q = getARTQuestions(m.tgl_lahir, m.jenis_kelamin, m.hubungan_kk, has_bayi_1_tahun)
       const r = artResponses[m.id]
       if (!r) return false
+      if (q.show_i1 && r.i1_persalinan_nakes === undefined) return false
+      if (q.show_i2 && r.i2_asi_eksklusif === undefined) return false
+      if (q.show_i3 && r.i3_menimbang_balita === undefined) return false
       if (q.show_i5 && r.i5_cuci_tangan === undefined) return false
       if (q.show_i8 && r.i8_makan_sayur_buah === undefined) return false
       if (q.show_i9 && r.i9_aktivitas_fisik === undefined) return false
       if (q.show_i10 && r.i10_tidak_merokok === undefined) return false
       if (q.show_ckg && r.g_cek_kesehatan === undefined) return false
       if (q.show_posyandu && r.g_posyandu_hadir === undefined) return false
+      if (q.show_ibu_hamil && r.g_ibu_hamil === undefined) return false
+      if (r.g_ibu_hamil && r.g_ibu_hamil_ttd === undefined) return false
+      if (q.show_remaja_putri_ttd && r.g_remaja_putri_ttd === undefined) return false
       return true
     }
     return true
@@ -184,15 +182,9 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
     setError('')
 
     const surveyData: SurveyIndikator = {
-      i1_persalinan_nakes: hasBalita ? (surveyKK.i1_persalinan_nakes ?? null) : null,
-      i2_asi_eksklusif: hasBayi ? (surveyKK.i2_asi_eksklusif ?? null) : null,
-      i3_menimbang_balita: hasBalita ? (surveyKK.i3_menimbang_balita ?? null) : null,
       i4_air_bersih: surveyKK.i4_air_bersih ?? false,
       i6_jamban_sehat: surveyKK.i6_jamban_sehat ?? false,
       i7_psn: surveyKK.i7_psn ?? false,
-      i14_ibu_hamil: surveyKK.i14_ibu_hamil ?? false,
-      i15_ibu_hamil_ttd: hasIbuHamil ? (surveyKK.i15_ibu_hamil_ttd ?? null) : null,
-      i16_remaja_putri: hasRemajaP,
     }
 
     const artList = Object.values(artResponses) as ArtResponse[]
@@ -206,6 +198,13 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
     const i10 = !artList.some(a => a.i10_tidak_merokok === false)
     const i11 = artList.some(a => a.g_cek_kesehatan === true)
     const i12 = artList.some(a => a.g_posyandu_hadir === true)
+    const i14_ibu_hamil = artList.some(a => a.g_ibu_hamil === true)
+    const i16_remaja_putri = members.some(m => m.jenis_kelamin === 'P' && hitungUsia(m.tgl_lahir) >= 12 && hitungUsia(m.tgl_lahir) <= 18)
+    const i1 = artList.find(a => a.i1_persalinan_nakes !== null)?.i1_persalinan_nakes ?? null
+    const i2 = artList.find(a => a.i2_asi_eksklusif !== null)?.i2_asi_eksklusif ?? null
+    const i3 = artList.find(a => a.i3_menimbang_balita !== null)?.i3_menimbang_balita ?? null
+    const i15 = artList.find(a => a.g_ibu_hamil_ttd !== null)?.g_ibu_hamil_ttd ?? null
+    const i17 = artList.find(a => a.g_remaja_putri_ttd !== null)?.g_remaja_putri_ttd ?? null
 
     const now = nowISO()
     const record = {
@@ -216,8 +215,13 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
       i10_tidak_merokok: i10,
       i11_cek_kesehatan: i11,
       i12_kunjungan_posyandu: i12,
-      i15_ibu_hamil_ttd: hasIbuHamil ? (surveyKK.i15_ibu_hamil_ttd ?? null) : null,
-      i17_remaja_putri_ttd: null,
+      i14_ibu_hamil: i14_ibu_hamil,
+      i16_remaja_putri: i16_remaja_putri,
+      i1_persalinan_nakes: i1,
+      i2_asi_eksklusif: i2,
+      i3_menimbang_balita: i3,
+      i15_ibu_hamil_ttd: i15,
+      i17_remaja_putri_ttd: i17,
       skor_phbs: score.skor,
       denominator_phbs: score.denominator,
       is_rt_sehat: score.is_rt_sehat,
@@ -233,12 +237,18 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
           id: art.id || generateLocalId(),
           survey_id: survey.id,
           family_member_id: art.family_member_id,
+          i1_persalinan_nakes: art.i1_persalinan_nakes ?? null,
+          i2_asi_eksklusif: art.i2_asi_eksklusif ?? null,
+          i3_menimbang_balita: art.i3_menimbang_balita ?? null,
           i5_cuci_tangan: art.i5_cuci_tangan ?? null,
           i8_makan_sayur_buah: art.i8_makan_sayur_buah ?? null,
           i9_aktivitas_fisik: art.i9_aktivitas_fisik ?? null,
           i10_tidak_merokok: art.i10_tidak_merokok ?? null,
           g_cek_kesehatan: art.g_cek_kesehatan ?? null,
           g_posyandu_hadir: art.g_posyandu_hadir ?? null,
+          g_ibu_hamil: art.g_ibu_hamil ?? null,
+          g_ibu_hamil_ttd: art.g_ibu_hamil_ttd ?? null,
+          g_remaja_putri_ttd: art.g_remaja_putri_ttd ?? null,
           created_at: now,
           updated_at: now,
         }
@@ -416,16 +426,6 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
                   surveyKK.i6_jamban_sehat, v => setSurveyKK(p => ({ ...p, i6_jamban_sehat: v })))}
                 {renderBinaryQuestion('PSN 3M Plus', 'Apakah dilakukan PSN minimal seminggu sekali?',
                   surveyKK.i7_psn, v => setSurveyKK(p => ({ ...p, i7_psn: v })))}
-                {hasBalita && renderBinaryQuestion('Persalinan oleh Tenaga Kesehatan', 'Apakah persalinan terakhir ditolong tenaga kesehatan?',
-                  surveyKK.i1_persalinan_nakes as boolean | undefined, v => setSurveyKK(p => ({ ...p, i1_persalinan_nakes: v })))}
-                {hasBayi && renderBinaryQuestion('ASI Eksklusif', 'Apakah bayi (0-6 bulan) mendapat ASI eksklusif?',
-                  surveyKK.i2_asi_eksklusif as boolean | undefined, v => setSurveyKK(p => ({ ...p, i2_asi_eksklusif: v })))}
-                {hasBalita && renderBinaryQuestion('Menimbang Balita', 'Apakah balita ditimbang minimal 8x dalam setahun?',
-                  surveyKK.i3_menimbang_balita as boolean | undefined, v => setSurveyKK(p => ({ ...p, i3_menimbang_balita: v })))}
-                {renderBinaryQuestion('Ada Ibu Hamil', 'Apakah ada anggota keluarga yang sedang hamil?',
-                  surveyKK.i14_ibu_hamil ?? undefined, v => setSurveyKK(p => ({ ...p, i14_ibu_hamil: v })))}
-                {hasIbuHamil && renderBinaryQuestion('Ibu Hamil Konsumsi TTD', 'Apakah ibu hamil rutin mengonsumsi TTD?',
-                  (surveyKK.i15_ibu_hamil_ttd ?? undefined) as boolean | undefined, v => setSurveyKK(p => ({ ...p, i15_ibu_hamil_ttd: v })))}
               </>
             )}
 
@@ -433,7 +433,7 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
             {step > 0 && step <= members.length && (() => {
               const m = members[step - 1]
               const u = hitungUsia(m.tgl_lahir)
-              const q = getARTQuestions(u, m.jenis_kelamin)
+              const q = getARTQuestions(m.tgl_lahir, m.jenis_kelamin, m.hubungan_kk, has_bayi_1_tahun)
               const r = artResponses[m.id] ?? {}
               const updateArt = (key: keyof ArtResponse, val: boolean) => {
                 setArtResponses(prev => ({ ...prev, [m.id]: { ...prev[m.id], [key]: val } }))
@@ -452,6 +452,12 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
                       ART {step}/{members.length}
                     </div>
                   </div>
+                  {q.show_i1 || q.show_i2 || q.show_i3 || q.show_i5 || q.show_i8 || q.show_i9 || q.show_i10 ? (
+                    <h3 className="font-bold text-gray-700 mt-4 mb-3 pb-2 border-b">Indikator PHBS Inti</h3>
+                  ) : null}
+                  {q.show_i1 && renderBinaryQuestion("Persalinan oleh Nakes", "Apakah pada persalinan termuda, ibu ditolong oleh tenaga kesehatan di fasilitas kesehatan?", r.i1_persalinan_nakes ?? undefined, v => updateArt('i1_persalinan_nakes', v))}
+                  {q.show_i2 && renderBinaryQuestion("ASI Eksklusif", "Apakah bayi (0-6 bulan) ini mendapat ASI eksklusif?", r.i2_asi_eksklusif ?? undefined, v => updateArt('i2_asi_eksklusif', v))}
+                  {q.show_i3 && renderBinaryQuestion("Menimbang Balita", "Apakah anak ini ditimbang minimal 8x dalam setahun di Posyandu?", r.i3_menimbang_balita ?? undefined, v => updateArt('i3_menimbang_balita', v))}
                   {q.show_i5 && renderBinaryQuestion('Cuci Tangan Pakai Sabun',
                     'Apakah mencuci tangan dengan sabun di air mengalir?',
                     r.i5_cuci_tangan as boolean | undefined, v => updateArt('i5_cuci_tangan', v))}
@@ -464,12 +470,23 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
                   {q.show_i10 && renderBinaryQuestion('TIDAK Merokok',
                     'Apakah ART ini TIDAK MEROKOK di dalam rumah?',
                     r.i10_tidak_merokok as boolean | undefined, v => updateArt('i10_tidak_merokok', v))}
+                  
+                  {q.show_ckg || q.show_posyandu || q.show_ibu_hamil || q.show_remaja_putri_ttd ? (
+                    <h3 className="font-bold text-gray-700 mt-6 mb-3 pb-2 border-b">Indikator GERMAS (Non-PHBS)</h3>
+                  ) : null}
                   {q.show_ckg && renderBinaryQuestion('Cek Kesehatan Berkala',
                     'Apakah melakukan cek kesehatan minimal 1x dalam 6 bulan? (GERMAS)',
                     r.g_cek_kesehatan as boolean | undefined, v => updateArt('g_cek_kesehatan', v))}
                   {q.show_posyandu && renderBinaryQuestion('Kunjungan Posyandu',
                     'Apakah hadir di posyandu bulan lalu? (GERMAS)',
                     r.g_posyandu_hadir as boolean | undefined, v => updateArt('g_posyandu_hadir', v))}
+                  
+                  {q.show_ibu_hamil && renderBinaryQuestion("Sedang Hamil?", "Apakah ART ini sedang hamil?", r.g_ibu_hamil ?? undefined, v => {
+                    updateArt('g_ibu_hamil', v)
+                    if (!v) updateArt('g_ibu_hamil_ttd', false)
+                  })}
+                  {r.g_ibu_hamil && renderBinaryQuestion("Ibu Hamil Konsumsi TTD", "Apakah ibu hamil ini rutin mengonsumsi TTD?", r.g_ibu_hamil_ttd ?? undefined, v => updateArt('g_ibu_hamil_ttd', v))}
+                  {q.show_remaja_putri_ttd && renderBinaryQuestion("Remaja Putri Konsumsi TTD", "Apakah remaja putri ini rutin mengonsumsi Tablet Tambah Darah?", r.g_remaja_putri_ttd ?? undefined, v => updateArt('g_remaja_putri_ttd', v))}
                 </>
               )
             })()}

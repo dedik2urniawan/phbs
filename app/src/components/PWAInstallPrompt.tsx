@@ -7,6 +7,12 @@ export default function PWAInstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false)
 
   useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.error('SW registration failed:', err)
+      })
+    }
+
     const handler = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e)

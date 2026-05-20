@@ -37,9 +37,7 @@ export interface LocalSurvey {
   tahun: number
   survey_date: string
   // 10 Indikator PHBS Inti
-  i1_persalinan_nakes: boolean | null
-  i2_asi_eksklusif: boolean | null
-  i3_menimbang_balita: boolean | null
+  // 10 Indikator PHBS Inti (Note: i1, i2, i3 dipindah ke ART responses)
   i4_air_bersih: boolean
   i5_cuci_tangan: boolean        // Computed dari ART responses
   i6_jamban_sehat: boolean
@@ -51,10 +49,6 @@ export interface LocalSurvey {
   i11_cek_kesehatan: boolean
   i12_kunjungan_posyandu: boolean
   i13_pengunjung_posyandu: string[] | null
-  i14_ibu_hamil: boolean
-  i15_ibu_hamil_ttd: boolean | null
-  i16_remaja_putri: boolean
-  i17_remaja_putri_ttd: boolean | null
   catatan: string | null
   // Skor PHBS (baru v2)
   skor_phbs: number | null
@@ -72,12 +66,18 @@ export interface LocalSurveyArtResponse {
   id: string
   survey_id: string
   family_member_id: string
+  i1_persalinan_nakes: boolean | null
+  i2_asi_eksklusif: boolean | null
+  i3_menimbang_balita: boolean | null
   i5_cuci_tangan: boolean | null
   i8_makan_sayur_buah: boolean | null
   i9_aktivitas_fisik: boolean | null
   i10_tidak_merokok: boolean | null
   g_cek_kesehatan: boolean | null
   g_posyandu_hadir: boolean | null
+  g_ibu_hamil: boolean | null
+  g_ibu_hamil_ttd: boolean | null
+  g_remaja_putri_ttd: boolean | null
   created_at: string
   updated_at: string
   sync_status: 'synced' | 'pending' | 'error'
