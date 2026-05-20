@@ -1,6 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { AppUser } from '@/lib/types'
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react'
@@ -31,7 +32,7 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
 
-  const baseMenuItems = [
+  const menuItems = [
     { icon: '📊', label: 'Dashboard', href: '/dashboard' },
     { icon: '🏠', label: 'Data Rumah Tangga', href: '/dashboard/households' },
     { icon: '📋', label: 'Input Survei', href: '/dashboard/survey/new' },
@@ -39,7 +40,13 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
     { icon: '📈', label: 'Analisis Laporan', href: '/dashboard/reports/analysis' },
   ]
 
-  const canAccessSasaran = isSuperAdmin || user?.role === 'admin_puskesmas'
+  if (isSuperAdmin || user?.role === 'admin_puskesmas') {
+    menuItems.push({ icon: '🎯', label: 'Input Sasaran KK', href: '/dashboard/sasaran' })
+  }
+
+  if (isSuperAdmin) {
+    menuItems.push({ icon: '👥', label: 'Manajemen User', href: '/dashboard/users' })
+  }
 
   return (
     <div className={`fixed inset-y-0 left-0 transition-all duration-300 bg-gradient-to-b from-emerald-900 to-teal-800 shadow-xl z-50 flex flex-col ${isCollapsed ? 'w-20' : 'w-64'}`}>
@@ -65,10 +72,10 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
       </div>
 
       <nav className="p-3 flex-1 overflow-y-auto space-y-1">
-        {baseMenuItems.map((item) => {
+        {menuItems.map((item) => {
           const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)
           return (
-            <a
+            <Link
               key={item.href}
               href={item.href}
               title={isCollapsed ? item.label : undefined}
@@ -80,43 +87,9 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
             >
               <span className="text-lg">{item.icon}</span>
               {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
-            </a>
+            </Link>
           )
         })}
-        {canAccessSasaran && (() => {
-          const href = '/dashboard/sasaran'
-          const isActive = pathname?.startsWith(href)
-          return (
-            <a
-              key={href}
-              href={href}
-              title={isCollapsed ? 'Input Sasaran KK' : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
-              } ${isCollapsed ? 'justify-center' : ''}`}
-            >
-              <span className="text-lg">🎯</span>
-              {!isCollapsed && <span className="whitespace-nowrap">Input Sasaran KK</span>}
-            </a>
-          )
-        })()}
-        {isSuperAdmin && (() => {
-          const href = '/dashboard/users'
-          const isActive = pathname?.startsWith(href)
-          return (
-            <a
-              key={href}
-              href={href}
-              title={isCollapsed ? 'Manajemen User' : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
-              } ${isCollapsed ? 'justify-center' : ''}`}
-            >
-              <span className="text-lg">👥</span>
-              {!isCollapsed && <span className="whitespace-nowrap">Manajemen User</span>}
-            </a>
-          )
-        })()}
 
       </nav>
 
