@@ -35,8 +35,8 @@ const PENDIDIKAN_OPTIONS = [
 
 const PEKERJAAN_OPTIONS = [
   '', 'Belum/Tidak Bekerja', 'Pelajar/Mahasiswa', 'Mengurus RT',
-  'PNS/TNI/Polri', 'Karyawan Swasta', 'Wiraswasta/Pedagang',
-  'Petani/Peternak', 'Buruh', 'Pensiunan', 'Lainnya',
+  'Wiraswasta', 'Karyawan Swasta', 'PNS/TNI/POLRI', 'ASN/TNI/POLRI', 
+  'Pendidik', 'Petani/Peternak', 'Nelayan', 'Buruh', 'Pensiunan', 'Lainnya',
 ]
 
 interface Props {

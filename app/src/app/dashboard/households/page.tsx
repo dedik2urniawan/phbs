@@ -40,7 +40,7 @@ export default async function HouseholdsPage() {
   // Ambil households sesuai role
   let householdsQuery = supabase
     .from('households')
-    .select('*, ref_desa(desa_kel), ref_puskesmas(nama)', { count: 'exact' })
+    .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))', { count: 'exact' })
     .order('created_at', { ascending: false })
     .limit(20)
 

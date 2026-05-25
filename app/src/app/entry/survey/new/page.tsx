@@ -38,7 +38,7 @@ export default async function EntrySurveyPage({ searchParams }: Props) {
 
   const listQuery = supabase
     .from('households')
-    .select('id, no_kk, nama_kk, ref_desa(desa_kel)')
+    .select('id, no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(desa_kel)')
     .order('created_at', { ascending: false })
     .limit(50)
 

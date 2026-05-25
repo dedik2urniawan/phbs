@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { validateNIK } from '@/lib/validators/nik'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { offlineDB, generateLocalId, nowISO, LocalFamilyMember } from '@/lib/db/offline'
+import { offlineDB, generateLocalId, nowISO, LocalFamilyMember, LocalKaderPhbs } from '@/lib/db/offline'
 import { enqueueSync } from '@/lib/db/sync'
 import SyncStatusBar from '@/components/SyncStatusBar'
 import { hitungSkorPHBS, getARTQuestions, hitungUsia, ArtResponse, SurveyIndikator } from '@/lib/phbs/scoring'
@@ -12,6 +13,7 @@ import { hitungSkorPHBS, getARTQuestions, hitungUsia, ArtResponse, SurveyIndikat
 interface Household {
   id: string; no_kk: string; nama_kk: string
   puskesmas_id?: string
+  desa_id?: string
   alamat?: string; rt?: string; rw?: string
   ref_desa: { desa_kel: string } | null
   ref_puskesmas?: { nama: string } | null
@@ -62,6 +64,69 @@ export default function SurveyWizard({
   const [households, setHouseholds]     = useState<Household[]>(householdList)
   const [currentPage, setCurrentPage]   = useState(1)
   const itemsPerPage = 5
+
+  const [kaderId, setKaderId]           = useState<string>('')
+  const [kaderList, setKaderList]       = useState<LocalKaderPhbs[]>([])
+
+  // Add ART inline
+  const [showAddArt, setShowAddArt] = useState(false)
+  const [newArt, setNewArt] = useState({
+    nama: '', nik: '', jenis_kelamin: 'L', tgl_lahir: '', hubungan_kk: 'Anak', pendidikan: '', pekerjaan: ''
+  })
+  const [nikError, setNikError] = useState('')
+  const [nikInfo, setNikInfo] = useState<{ tgl_lahir: Date | null; jenis_kelamin: 'L' | 'P' | null } | null>(null)
+  const [addArtSubmitting, setAddArtSubmitting] = useState(false)
+
+  const handleNikChange = (val: string) => {
+    const numeric = val.replace(/\D/g, '')
+    setNewArt(prev => ({...prev, nik: numeric}))
+    
+    if (numeric.length === 16) {
+      const result = validateNIK(numeric)
+      if (!result.valid) {
+        setNikError(result.error!)
+        setNikInfo(null)
+      } else {
+        setNikError('')
+        if (result.info) {
+          setNikInfo(result.info)
+          if (result.info.jenis_kelamin) {
+            setNewArt(prev => ({...prev, jenis_kelamin: result.info!.jenis_kelamin!}))
+          }
+          if (result.info.tgl_lahir) {
+            setNewArt(prev => ({...prev, tgl_lahir: result.info!.tgl_lahir!.toISOString().split('T')[0]}))
+          }
+        }
+      }
+    } else if (numeric.length < 16) {
+      setNikError('')
+      setNikInfo(null)
+    }
+  }
+
+  useEffect(() => {
+    async function loadKader() {
+      if (typeof window !== 'undefined' && navigator.onLine) {
+        try {
+          const { data } = await supabase
+            .from('kader_phbs')
+            .select('id, puskesmas_id, desa_id, nama_kader, created_at')
+          
+          if (data && data.length > 0) {
+            await offlineDB.kader_phbs.clear()
+            await offlineDB.kader_phbs.bulkAdd(data)
+            setKaderList(data)
+            return
+          }
+        } catch (e) {
+          console.warn('Failed to fetch kader online, falling back to offline db', e)
+        }
+      }
+      const list = await offlineDB.kader_phbs.toArray()
+      setKaderList(list)
+    }
+    loadKader()
+  }, [supabase])
   
   const handlePkmChange = useCallback(async (pkmId: string) => {
     setSelectedPkm(pkmId)
@@ -78,7 +143,7 @@ export default function SurveyWizard({
 
       const { data: hh } = await supabase
         .from('households')
-        .select('id, no_kk, nama_kk, puskesmas_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
+        .select('id, no_kk, nama_kk, puskesmas_id, desa_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
         .eq('puskesmas_id', pkmId)
         .order('created_at', { ascending: false })
         .limit(1000)
@@ -93,7 +158,7 @@ export default function SurveyWizard({
       setDesaList([])
       const { data: hh } = await supabase
         .from('households')
-        .select('id, no_kk, nama_kk, puskesmas_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
+        .select('id, no_kk, nama_kk, puskesmas_id, desa_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
         .order('created_at', { ascending: false })
         .limit(1000)
         
@@ -139,7 +204,52 @@ export default function SurveyWizard({
       setArtResponses(initialArt)
     }
     loadMembers()
-  }, [household])
+  }, [household, supabase])
+
+  const handleAddArtSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAddArtSubmitting(true)
+    try {
+      const artId = generateLocalId()
+      const record = {
+        id: artId,
+        household_id: household!.id,
+        nama: newArt.nama.trim(),
+        nik: newArt.nik || null,
+        jenis_kelamin: newArt.jenis_kelamin as 'L' | 'P',
+        tgl_lahir: newArt.tgl_lahir,
+        hubungan_kk: newArt.hubungan_kk,
+        pendidikan: newArt.pendidikan || null,
+        pekerjaan: newArt.pekerjaan || null,
+        created_at: nowISO(),
+        sync_status: 'pending' as const
+      }
+      
+      // Save offline
+      await offlineDB.family_members.add(record)
+      
+      // Save online if possible
+      if (navigator.onLine) {
+        const { error: err } = await supabase.from('family_members').insert({ ...record, sync_status: undefined })
+        if (!err) await offlineDB.family_members.update(artId, { sync_status: 'synced' })
+        else await enqueueSync('family_members', artId, 'insert', record)
+      } else {
+        await enqueueSync('family_members', artId, 'insert', record)
+      }
+
+      // Update local state
+      setMembers(prev => [...prev, record])
+      setArtResponses(prev => ({ ...prev, [artId]: { family_member_id: artId } }))
+      
+      setShowAddArt(false)
+      setNewArt({ nama: '', nik: '', jenis_kelamin: 'L', tgl_lahir: '', hubungan_kk: 'Anak', pendidikan: '', pekerjaan: '' })
+      alert('Berhasil menambah ART baru!')
+    } catch (err: any) {
+      alert('Gagal menambah ART: ' + err.message)
+    } finally {
+      setAddArtSubmitting(false)
+    }
+  }
 
   // Hitung total steps: 1 (KK) + members.length (ART) + 1 (Catatan)
   const totalSteps = members.length > 0 ? members.length + 2 : 2
@@ -151,6 +261,7 @@ export default function SurveyWizard({
   const isStepValid = () => {
     if (step === 0) {
       if (!household) return false
+      if (!kaderId) return false
       // Validasi KK questions
       const reqKeys = ['i4_air_bersih', 'i6_jamban_sehat', 'i7_psn']
       return reqKeys.every(k => surveyKK[k as keyof SurveyIndikator] !== undefined)
@@ -237,6 +348,7 @@ export default function SurveyWizard({
       denominator_phbs: score.denominator,
       is_rt_sehat: score.is_rt_sehat,
       kategori_phbs: score.kategori,
+      kader_id: kaderId,
       created_by: appUser.id,
       created_at: now,
       updated_at: now,
@@ -523,13 +635,53 @@ export default function SurveyWizard({
             {step === 0 && (
               <>
                 <h2 className="text-base font-bold text-gray-800 mb-5 flex items-center gap-2">
-                  <span className="text-2xl">📋</span> Pertanyaan Level Rumah Tangga
+                  <span className="text-2xl">📋</span> Data Survei & Pertanyaan Level KK
                 </h2>
+
+                <div className="mb-8 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nama Kader / Surveyor</label>
+                  <select 
+                    value={kaderId}
+                    onChange={e => setKaderId(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-400 bg-white"
+                  >
+                    <option value="">-- Pilih Kader --</option>
+                    {kaderList
+                      .filter((k: any) => k.desa_id === household.desa_id || !household.desa_id) 
+                      .map((k: any) => (
+                      <option key={k.id} value={k.id}>{k.nama_kader}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <h3 className="font-bold text-gray-700 mt-4 mb-3 pb-2 border-b">Indikator PHBS Inti</h3>
                 {renderBinaryQuestion("Menggunakan Air Bersih", "Apakah keluarga menggunakan sumber air bersih?", surveyKK.i4_air_bersih, v => setSurveyKK({...surveyKK, i4_air_bersih: v}))}
                 {renderBinaryQuestion("Menggunakan Jamban Sehat", "Apakah keluarga menggunakan jamban sehat leher angsa?", surveyKK.i6_jamban_sehat, v => setSurveyKK({...surveyKK, i6_jamban_sehat: v}))}
                 {renderBinaryQuestion("Pemberantasan Sarang Nyamuk (PSN)", "Apakah dilakukan PSN minimal seminggu sekali (3M Plus)?", surveyKK.i7_psn, v => setSurveyKK({...surveyKK, i7_psn: v}))}
+              
+                <div className="mt-8 pt-6 border-t border-gray-100 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-gray-800">Daftar Anggota Rumah Tangga</h3>
+                    <p className="text-xs text-gray-500">{members.length} anggota tercatat</p>
+                  </div>
+                  <button onClick={() => setShowAddArt(true)} className="flex items-center gap-1 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+                    + Tambah ART Baru
+                  </button>
+                </div>
+                
+                {members.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-2">
+                    {members.map(m => (
+                      <div key={m.id} className="text-sm bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-gray-800">{m.nama}</p>
+                          <p className="text-xs text-gray-500">{m.hubungan_kk} · {hitungUsia(m.tgl_lahir)} th</p>
+                        </div>
+                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Siap Disurvei</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
@@ -563,7 +715,7 @@ export default function SurveyWizard({
                       {q.show_i5 && renderBinaryQuestion("Cuci Tangan Pakai Sabun", "Apakah mencuci tangan dengan sabun di air mengalir?", r.i5_cuci_tangan ?? undefined, v => updateArt('i5_cuci_tangan', v))}
                       {q.show_i8 && renderBinaryQuestion("Makan Sayur dan Buah", "Apakah makan sayur dan buah setiap hari?", r.i8_makan_sayur_buah ?? undefined, v => updateArt('i8_makan_sayur_buah', v))}
                       {q.show_i9 && renderBinaryQuestion("Aktivitas Fisik", "Apakah melakukan aktivitas fisik minimal 30 menit/hari?", r.i9_aktivitas_fisik ?? undefined, v => updateArt('i9_aktivitas_fisik', v))}
-                      {q.show_i10 && renderBinaryQuestion("TIDAK Merokok", "Apakah ART ini TIDAK MEROKOK?", r.i10_tidak_merokok ?? undefined, v => updateArt('i10_tidak_merokok', v))}
+                      {q.show_i10 && renderBinaryQuestion("Apakah Anggota Rumah Tangga ini TIDAK MEROKOK?", "Apakah ART ini TIDAK MEROKOK?", r.i10_tidak_merokok ?? undefined, v => updateArt('i10_tidak_merokok', v))}
                       
                       {q.show_ckg || q.show_posyandu || q.show_ibu_hamil || q.show_remaja_putri_ttd ? (
                         <h3 className="font-bold text-gray-700 mt-6 mb-3 pb-2 border-b">Indikator GERMAS (Non-PHBS)</h3>
@@ -619,6 +771,85 @@ export default function SurveyWizard({
           </div>
         )}
       </div>
+
+      {/* Modal Tambah ART Inline */}
+      {showAddArt && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+              <h3 className="font-bold text-gray-800 text-lg">Tambah ART Baru</h3>
+              <button onClick={() => setShowAddArt(false)} className="text-gray-400 hover:bg-gray-100 p-2 rounded-lg">✕</button>
+            </div>
+            <form onSubmit={handleAddArtSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Nama Lengkap *</label>
+                <input required type="text" value={newArt.nama} onChange={e => setNewArt({...newArt, nama: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-emerald-400 bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">NIK (Opsional)</label>
+                <input 
+                  type="text" 
+                  maxLength={16} 
+                  value={newArt.nik} 
+                  onChange={e => handleNikChange(e.target.value)} 
+                  placeholder="16 digit NIK"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-emerald-400 bg-white ${
+                    nikError ? 'border-red-400 bg-red-50' : nikInfo ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200'
+                  }`} 
+                />
+                {nikError && <p className="text-red-500 text-xs mt-1">⚠️ {nikError}</p>}
+                {nikInfo && !nikError && newArt.nik.length === 16 && (
+                  <p className="text-emerald-600 text-xs mt-1 font-medium flex items-center gap-1">
+                    ✅ NIK valid — {nikInfo.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}
+                    {nikInfo.tgl_lahir && `, lahir ${nikInfo.tgl_lahir.toLocaleDateString('id-ID')}`}
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Jenis Kelamin *</label>
+                  <select required value={newArt.jenis_kelamin} onChange={e => setNewArt({...newArt, jenis_kelamin: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:ring-2 focus:ring-emerald-400">
+                    <option value="L">Laki-laki</option>
+                    <option value="P">Perempuan</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Tgl Lahir *</label>
+                  <input required type="date" value={newArt.tgl_lahir} onChange={e => setNewArt({...newArt, tgl_lahir: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-emerald-400" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Hubungan dengan KK *</label>
+                <select required value={newArt.hubungan_kk} onChange={e => setNewArt({...newArt, hubungan_kk: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:ring-2 focus:ring-emerald-400">
+                  {['Kepala Keluarga','Istri','Anak','Menantu','Cucu','Orang Tua','Mertua','Famili Lain','Pembantu','Lainnya'].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Pendidikan</label>
+                  <select value={newArt.pendidikan} onChange={e => setNewArt({...newArt, pendidikan: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:ring-2 focus:ring-emerald-400">
+                    <option value="">-- Pilih --</option>
+                    {['Tidak/Belum Sekolah','Belum Tamat SD/Sederajat','Tamat SD/Sederajat','SLTP/Sederajat','SLTA/Sederajat','Diploma I/II','Akademi/Diploma III/S.Muda','Diploma IV/Strata I','Strata II','Strata III'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Pekerjaan</label>
+                  <select value={newArt.pekerjaan} onChange={e => setNewArt({...newArt, pekerjaan: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:ring-2 focus:ring-emerald-400">
+                    <option value="">-- Pilih --</option>
+                    {['Belum/Tidak Bekerja', 'Pelajar/Mahasiswa', 'Mengurus RT', 'Wiraswasta', 'Karyawan Swasta', 'PNS/TNI/POLRI', 'ASN/TNI/POLRI', 'Pendidik', 'Petani/Peternak', 'Nelayan', 'Buruh', 'Pensiunan', 'Lainnya'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="pt-4 flex gap-2 justify-end border-t border-gray-100">
+                <button type="button" onClick={() => setShowAddArt(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg font-medium">Batal</button>
+                <button type="submit" disabled={addArtSubmitting} className="px-4 py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 rounded-lg font-medium">
+                  {addArtSubmitting ? 'Menyimpan...' : 'Simpan ART'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

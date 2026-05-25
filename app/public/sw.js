@@ -1,9 +1,10 @@
-const CACHE_NAME = 'sim-phbs-v1'
+const CACHE_NAME = 'sim-phbs-v2'
 const STATIC_ASSETS = [
   '/',
   '/login',
+  '/entry',
   '/manifest.json',
-  '/promkes.png',
+  '/promkes.png'
 ]
 
 // Install: cache static assets
@@ -30,12 +31,11 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Fetch: network-first for API, cache-first for static
+// Fetch: network-first for API, network-first for navigation, cache-first for static
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Skip non-GET and cross-origin except supabase
   if (request.method !== 'GET') return
   if (url.origin !== self.location.origin && !url.hostname.includes('supabase.co')) return
 
@@ -45,18 +45,36 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // For static assets: cache-first
+  // For navigation requests (HTML), Network First with Cache Fallback
+  if (request.mode === 'navigate' || (request.headers.get('accept') && request.headers.get('accept').includes('text/html'))) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          const clone = response.clone()
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
+          return response
+        })
+        .catch(() => caches.match(request).then(cached => {
+            if (cached) return cached;
+            return caches.match('/entry'); // Fallback to /entry if possible
+        }))
+    )
+    return
+  }
+
+  // For static assets: Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (cached) return cached
-      return fetch(request).then((response) => {
-        // Only cache successful responses for static assets
+      const fetchPromise = fetch(request).then((response) => {
         if (response && response.status === 200 && response.type !== 'opaque') {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
         }
         return response
-      }).catch(() => cached || new Response('Not found', { status: 404 }))
+      }).catch(() => {
+        // ignore fetch error in swr
+      })
+      return cached || fetchPromise
     })
   )
 })

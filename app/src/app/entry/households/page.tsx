@@ -30,7 +30,7 @@ export default async function EntryHouseholdsPage() {
 
   const query = supabase
     .from('households')
-    .select('*, ref_desa(desa_kel), ref_puskesmas(nama)', { count: 'exact' })
+    .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))', { count: 'exact' })
 
   if (!isSuperAdmin) {
     query.eq('puskesmas_id', appUser?.puskesmas_id)

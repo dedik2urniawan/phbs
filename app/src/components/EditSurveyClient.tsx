@@ -467,7 +467,7 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
                   {q.show_i9 && renderBinaryQuestion('Aktivitas Fisik',
                     'Apakah melakukan aktivitas fisik minimal 30 menit/hari?',
                     r.i9_aktivitas_fisik as boolean | undefined, v => updateArt('i9_aktivitas_fisik', v))}
-                  {q.show_i10 && renderBinaryQuestion('TIDAK Merokok',
+                  {q.show_i10 && renderBinaryQuestion('Apakah Anggota Rumah Tangga ini TIDAK MEROKOK?',
                     'Apakah ART ini TIDAK MEROKOK di dalam rumah?',
                     r.i10_tidak_merokok as boolean | undefined, v => updateArt('i10_tidak_merokok', v))}
                   

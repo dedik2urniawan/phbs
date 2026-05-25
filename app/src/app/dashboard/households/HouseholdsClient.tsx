@@ -10,6 +10,7 @@ interface Household {
   created_at: string
   ref_desa: { desa_kel: string } | null
   ref_puskesmas: { nama: string } | null
+  surveys?: { id: string; kader_phbs?: { nama_kader: string } }[] | null
 }
 interface Desa { id: string; desa_kel: string; puskesmas_id: string }
 interface Puskesmas { id: string; nama: string; kecamatan: string }
@@ -62,7 +63,7 @@ export default function HouseholdsClient({
       // Load households for selected puskesmas
       const { data: hh, count } = await supabase
         .from('households')
-        .select('*, ref_desa(desa_kel), ref_puskesmas(nama)', { count: 'exact' })
+        .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))', { count: 'exact' })
         .eq('puskesmas_id', pkmId)
         .order('created_at', { ascending: false })
         .limit(1000)
@@ -73,7 +74,7 @@ export default function HouseholdsClient({
       setDesaList([])
       const { data: hh, count } = await supabase
         .from('households')
-        .select('*, ref_desa(desa_kel), ref_puskesmas(nama)', { count: 'exact' })
+        .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))', { count: 'exact' })
         .order('created_at', { ascending: false })
         .limit(1000)
       setHouseholds(hh || [])
@@ -246,6 +247,25 @@ export default function HouseholdsClient({
                       {h.ref_desa && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{h.ref_desa.desa_kel}</span>}
                       {isSuperAdmin && h.ref_puskesmas && (
                         <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{h.ref_puskesmas.nama}</span>
+                      )}
+                      {h.surveys && h.surveys.length > 0 ? (
+                        <div className="flex items-center gap-1.5 ml-1">
+                          <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-medium shadow-sm flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+                            Disurvei
+                          </span>
+                          {h.surveys[0].kader_phbs?.nama_kader && (
+                            <span className="text-[10px] text-gray-500 flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                              {h.surveys[0].kader_phbs.nama_kader}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium ml-1 flex items-center gap-1 border border-amber-200">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                          Belum Disurvei
+                        </span>
                       )}
                     </div>
                     <h3 className="font-semibold text-gray-800 text-sm">{h.nama_kk}</h3>

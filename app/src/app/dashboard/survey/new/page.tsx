@@ -58,7 +58,7 @@ export default async function NewSurveyPage({ searchParams }: Props) {
   // Ambil daftar households untuk dipilih (jika tidak ada household_id)
   let householdsQuery = supabase
     .from('households')
-    .select('id, no_kk, nama_kk, puskesmas_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
+    .select('id, no_kk, nama_kk, puskesmas_id, desa_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
     .order('created_at', { ascending: false })
     .limit(1000)
 

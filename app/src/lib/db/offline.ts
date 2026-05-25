@@ -55,6 +55,7 @@ export interface LocalSurvey {
   denominator_phbs: number | null
   is_rt_sehat: boolean | null
   kategori_phbs: string | null
+  kader_id: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -93,6 +94,14 @@ export interface SyncQueueItem {
   retries: number
 }
 
+export interface LocalKaderPhbs {
+  id: string
+  puskesmas_id: string
+  desa_id: string
+  nama_kader: string
+  created_at: string
+}
+
 // ===== DEXIE DATABASE =====
 class PHBSDatabase extends Dexie {
   households!: Table<LocalHousehold>
@@ -100,6 +109,7 @@ class PHBSDatabase extends Dexie {
   surveys!: Table<LocalSurvey>
   survey_art_responses!: Table<LocalSurveyArtResponse>
   sync_queue!: Table<SyncQueueItem>
+  kader_phbs!: Table<LocalKaderPhbs>
 
   constructor() {
     super('PHBS_DB')
@@ -109,13 +119,14 @@ class PHBSDatabase extends Dexie {
       surveys:        'id, household_id, tahun, sync_status',
       sync_queue:     '++id, table_name, record_id, operation, created_at',
     })
-    // v2: Tambah tabel ART responses + skor ke surveys
-    this.version(2).stores({
+    // v3: Tambah tabel kader_phbs
+    this.version(3).stores({
       households:             'id, puskesmas_id, desa_id, no_kk, sync_status, created_at',
       family_members:         'id, household_id, nik, sync_status',
       surveys:                'id, household_id, tahun, sync_status, is_rt_sehat',
       survey_art_responses:   'id, survey_id, family_member_id, sync_status',
       sync_queue:             '++id, table_name, record_id, operation, created_at',
+      kader_phbs:             'id, puskesmas_id, desa_id',
     })
   }
 }

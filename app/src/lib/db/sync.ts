@@ -39,6 +39,28 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
   return { synced, errors }
 }
 
+/**
+ * Download data referensi (seperti kader_phbs) dari server ke lokal (Dexie)
+ * Dipanggil saat pertama kali buka aplikasi PWA
+ */
+export async function syncReferenceData(): Promise<void> {
+  if (!(await isOnline())) return
+
+  try {
+    const { data: kaderData, error } = await supabase
+      .from('kader_phbs')
+      .select('id, puskesmas_id, desa_id, nama_kader, created_at')
+    
+    if (error) throw error
+    if (kaderData) {
+      await offlineDB.kader_phbs.clear()
+      await offlineDB.kader_phbs.bulkAdd(kaderData)
+    }
+  } catch (err) {
+    console.error('Gagal sync data referensi kader:', err)
+  }
+}
+
 async function processQueueItem(item: SyncQueueItem) {
   const payload = JSON.parse(item.payload)
   // Hapus field lokal yang tidak ada di server

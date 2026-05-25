@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { syncToServer, getPendingSyncCount } from '@/lib/db/sync'
+import { syncToServer, getPendingSyncCount, syncReferenceData } from '@/lib/db/sync'
 
 interface SyncStatus {
   isOnline: boolean
@@ -27,6 +27,7 @@ export function useSyncStatus(): SyncStatus & { triggerSync: () => void } {
     if (!navigator.onLine || status.isSyncing) return
     setStatus(prev => ({ ...prev, isSyncing: true }))
     await syncToServer()
+    await syncReferenceData()
     await refreshPending()
     setStatus(prev => ({ ...prev, isSyncing: false, lastSync: new Date() }))
   }

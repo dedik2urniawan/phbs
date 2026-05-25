@@ -45,6 +45,7 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
 
   if (isSuperAdmin || user?.role === 'admin_puskesmas') {
     menuItems.push({ icon: '🎯', label: 'Input Sasaran KK', href: '/dashboard/sasaran' })
+    menuItems.push({ icon: '🏷️', label: 'Input Kader PHBS', href: '/dashboard/kader' })
   }
 
   if (isSuperAdmin) {
