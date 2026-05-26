@@ -39,6 +39,13 @@ export default async function DashboardPage() {
   }
   const { data: sasaranData } = await sasaranQuery
 
+  // Fetch family members for Statistics Responden
+  let membersQuery = supabase.from('family_members').select('id, jenis_kelamin, pendidikan, pekerjaan, household_id, households!inner(puskesmas_id, desa_id)')
+  if (appUser?.role === 'admin_puskesmas') {
+    membersQuery = membersQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
+  }
+  const { data: familyMembersData } = await membersQuery
+
   return (
     <DashboardClient 
       user={appUser} 
@@ -47,6 +54,7 @@ export default async function DashboardPage() {
       refPuskesmas={refPuskesmas || []}
       refDesa={refDesa || []}
       sasaranData={sasaranData || []}
+      familyMembersData={familyMembersData || []}
     />
   )
 }

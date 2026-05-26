@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react'
 import { AppUser } from '@/lib/types'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby } from 'lucide-react'
 import WelcomeReminderModal from '@/components/WelcomeReminderModal'
 
@@ -13,6 +13,7 @@ interface Props {
   refPuskesmas: any[]
   refDesa: any[]
   sasaranData?: any[]
+  familyMembersData?: any[]
 }
 
 const PHBS_INDICATORS = [
@@ -37,18 +38,19 @@ const NON_PHBS_INDICATORS = [
   { key: 'i17_remaja_putri_ttd', label: 'Remaja Putri TTD', icon: CheckCircle, color: '#10b981' },
 ]
 
-export default function DashboardClient({ user, allHouseholds, surveysData, refPuskesmas, refDesa, sasaranData = [] }: Props) {
+export default function DashboardClient({ user, allHouseholds, surveysData, refPuskesmas, refDesa, sasaranData = [], familyMembersData = [] }: Props) {
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
   
   const currentYear = new Date().getFullYear()
   
   // States
-  const [activeTab, setActiveTab] = useState<'metadata' | 'phbs' | 'non-phbs'>('metadata')
+  const [activeTab, setActiveTab] = useState<'metadata' | 'respondents' | 'phbs' | 'non-phbs'>('metadata')
   const [filterYear, setFilterYear] = useState<number>(currentYear)
   const [filterPuskesmas, setFilterPuskesmas] = useState<string>('ALL')
   const [filterDesa, setFilterDesa] = useState<string>('ALL')
   const [activeMetadataChart, setActiveMetadataChart] = useState<'progress' | 'capaian'>('progress')
+  const [activeDemographicBreakdown, setActiveDemographicBreakdown] = useState<'gender' | 'education' | 'occupation'>('gender')
   
   const [activePhbsInd, setActivePhbsInd] = useState(PHBS_INDICATORS[0].key)
   const [activeNonPhbsInd, setActiveNonPhbsInd] = useState(NON_PHBS_INDICATORS[0].key)
@@ -92,6 +94,159 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
       return match
     })
   }, [surveysData, filterYear, filterPuskesmas, filterDesa, isSuperAdmin])
+
+  // Filtered Family Members based on surveyed households
+  const filteredMembers = useMemo(() => {
+    const activeHouseholdIds = new Set(filteredSurveys.map(s => s.household_id))
+    return (familyMembersData || []).filter(m => activeHouseholdIds.has(m.household_id))
+  }, [familyMembersData, filteredSurveys])
+
+  // Gender Demographic Stats
+  const genderStats = useMemo(() => {
+    let lCount = 0
+    let pCount = 0
+    filteredMembers.forEach(m => {
+      if (m.jenis_kelamin === 'L') lCount++
+      else if (m.jenis_kelamin === 'P') pCount++
+    })
+    const total = lCount + pCount
+    return {
+      total,
+      L: { count: lCount, pct: total > 0 ? Math.round((lCount / total) * 100) : 0 },
+      P: { count: pCount, pct: total > 0 ? Math.round((pCount / total) * 100) : 0 }
+    }
+  }, [filteredMembers])
+
+  // Education Demographic Stats
+  const educationStats = useMemo(() => {
+    const counts: Record<string, number> = {}
+    const list = ['Tidak Sekolah', 'SD/Sederajat', 'SMP/Sederajat', 'SMA/Sederajat', 'D1/D2/D3', 'S1/D4', 'S2', 'S3']
+    list.forEach(edu => { counts[edu] = 0 })
+    
+    filteredMembers.forEach(m => {
+      const edu = m.pendidikan || 'Tidak Sekolah'
+      if (counts[edu] !== undefined) {
+        counts[edu]++
+      } else {
+        const matched = list.find(l => edu.toLowerCase().includes(l.toLowerCase()))
+        if (matched) counts[matched]++
+        else counts['Tidak Sekolah']++
+      }
+    })
+    
+    const total = filteredMembers.length
+    return list.map(edu => ({
+      name: edu,
+      Jumlah: counts[edu],
+      Persentase: total > 0 ? Math.round((counts[edu] / total) * 100) : 0
+    }))
+  }, [filteredMembers])
+
+  // Occupation Demographic Stats
+  const occupationStats = useMemo(() => {
+    const counts: Record<string, number> = {}
+    filteredMembers.forEach(m => {
+      const occ = m.pekerjaan || 'Belum/Tidak Bekerja'
+      counts[occ] = (counts[occ] || 0) + 1
+    })
+    const total = filteredMembers.length
+    return Object.entries(counts)
+      .map(([name, count]) => ({
+        name: name || 'Belum/Tidak Bekerja',
+        Jumlah: count,
+        Persentase: total > 0 ? Math.round((count / total) * 100) : 0
+      }))
+      .sort((a, b) => b.Jumlah - a.Jumlah)
+  }, [filteredMembers])
+
+  // Regional Demographic breakdown
+  const regionalDemographicData = useMemo(() => {
+    const groupByPuskesmas = isSuperAdmin && filterPuskesmas === 'ALL'
+    const entities = groupByPuskesmas
+      ? refPuskesmas.filter(p => p.nama && !p.nama.toLowerCase().includes('dinkes'))
+      : availableDesa
+
+    return entities.map(entity => {
+      const entityMembers = filteredMembers.filter(m => {
+        const h = m.households
+        return groupByPuskesmas
+          ? String(h?.puskesmas_id) === String(entity.id)
+          : String(h?.desa_id) === String(entity.id)
+      })
+
+      const entityTotal = entityMembers.length
+      const name = groupByPuskesmas ? entity.nama : entity.desa_kel
+
+      if (activeDemographicBreakdown === 'gender') {
+        const L = entityMembers.filter(m => m.jenis_kelamin === 'L').length
+        const P = entityMembers.filter(m => m.jenis_kelamin === 'P').length
+        return {
+          name,
+          'Laki-laki': L,
+          'Perempuan': P,
+          Total: entityTotal
+        }
+      } else if (activeDemographicBreakdown === 'education') {
+        const eduObj: Record<string, number> = { name } as any
+        const list = ['Tidak Sekolah', 'SD/Sederajat', 'SMP/Sederajat', 'SMA/Sederajat', 'D1/D2/D3', 'S1/D4', 'S2', 'S3']
+        list.forEach(edu => { eduObj[edu] = 0 })
+        entityMembers.forEach(m => {
+          const edu = m.pendidikan || 'Tidak Sekolah'
+          if (eduObj[edu] !== undefined) {
+            eduObj[edu]++
+          } else {
+            const matched = list.find(l => edu.toLowerCase().includes(l.toLowerCase()))
+            if (matched) eduObj[matched]++
+            else eduObj['Tidak Sekolah']++
+          }
+        })
+        eduObj.Total = entityTotal
+        return eduObj
+      } else {
+        const topOccs = occupationStats.slice(0, 5).map(o => o.name)
+        const occObj: Record<string, number> = { name } as any
+        topOccs.forEach(o => { occObj[o] = 0 })
+        occObj['Lainnya'] = 0
+        
+        entityMembers.forEach(m => {
+          const occ = m.pekerjaan || 'Belum/Tidak Bekerja'
+          if (occObj[occ] !== undefined) {
+            occObj[occ]++
+          } else {
+            occObj['Lainnya']++
+          }
+        })
+        occObj.Total = entityTotal
+        return occObj
+      }
+    }).sort((a, b) => b.Total - a.Total)
+  }, [filteredMembers, activeDemographicBreakdown, isSuperAdmin, filterPuskesmas, refPuskesmas, availableDesa, occupationStats])
+
+  const regionalBars = useMemo(() => {
+    if (activeDemographicBreakdown === 'gender') {
+      return [
+        { key: 'Laki-laki', color: '#3b82f6' },
+        { key: 'Perempuan', color: '#ec4899' }
+      ]
+    } else if (activeDemographicBreakdown === 'education') {
+      return [
+        { key: 'Tidak Sekolah', color: '#94a3b8' },
+        { key: 'SD/Sederajat', color: '#f59e0b' },
+        { key: 'SMP/Sederajat', color: '#10b981' },
+        { key: 'SMA/Sederajat', color: '#3b82f6' },
+        { key: 'D1/D2/D3', color: '#8b5cf6' },
+        { key: 'S1/D4', color: '#ec4899' },
+        { key: 'S2', color: '#14b8a6' },
+        { key: 'S3', color: '#ef4444' }
+      ]
+    } else {
+      const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#94a3b8']
+      const topOccs = occupationStats.slice(0, 5).map(o => o.name)
+      const bars = topOccs.map((name, i) => ({ key: name, color: colors[i] }))
+      bars.push({ key: 'Lainnya', color: colors[5] })
+      return bars
+    }
+  }, [activeDemographicBreakdown, occupationStats])
 
   // Aggregation Helpers
   const calculateIndicatorStats = (data: any[], key: string) => {
@@ -437,9 +592,10 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
       {renderFilterPanel()}
 
       {/* Main Tabs Navigation */}
-      <div className="flex border-b border-gray-200 mb-6 gap-6">
+      <div className="flex border-b border-gray-200 mb-6 gap-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
         {[
           { id: 'metadata', label: 'Metadata Survey', icon: ClipboardList },
+          { id: 'respondents', label: 'Statistics Responden', icon: Users },
           { id: 'phbs', label: 'Capaian Indikator PHBS', icon: Target },
           { id: 'non-phbs', label: 'Capaian Indikator Non PHBS', icon: Activity },
         ].map(tab => {
@@ -610,6 +766,322 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
               })()}
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'respondents' && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+          {/* Top Metric Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-bl-full opacity-5 group-hover:opacity-10 transition-opacity"></div>
+              <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Total Responden</p>
+              <p className="text-4xl font-extrabold text-gray-900 mt-2">{filteredMembers.length.toLocaleString('id')}</p>
+              <p className="text-gray-400 text-xs mt-1 font-medium">Anggota keluarga terdata</p>
+            </div>
+            
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-bl-full opacity-5 group-hover:opacity-10 transition-opacity"></div>
+              <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Laki-Laki</p>
+              <p className="text-4xl font-extrabold text-blue-600 mt-2">
+                {genderStats.L.count.toLocaleString('id')} <span className="text-lg text-gray-400 font-normal">({genderStats.L.pct}%)</span>
+              </p>
+              <p className="text-gray-400 text-xs mt-1 font-medium">Responden laki-laki</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-pink-500 to-rose-600 rounded-bl-full opacity-5 group-hover:opacity-10 transition-opacity"></div>
+              <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Perempuan</p>
+              <p className="text-4xl font-extrabold text-pink-500 mt-2">
+                {genderStats.P.count.toLocaleString('id')} <span className="text-lg text-gray-400 font-normal">({genderStats.P.pct}%)</span>
+              </p>
+              <p className="text-gray-400 text-xs mt-1 font-medium">Responden perempuan</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500 to-orange-600 rounded-bl-full opacity-5 group-hover:opacity-10 transition-opacity"></div>
+              <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Rasio Gender</p>
+              <p className="text-4xl font-extrabold text-amber-500 mt-2">
+                {genderStats.total > 0 ? (genderStats.L.count / Math.max(1, genderStats.P.count)).toFixed(2) : '0'}
+              </p>
+              <p className="text-gray-400 text-xs mt-1 font-medium">Perbandingan L dibanding P</p>
+            </div>
+          </div>
+
+          {/* Demographics Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Gender Donut Chart */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col">
+              <div>
+                <h3 className="font-bold text-gray-800 text-sm">Distribusi Jenis Kelamin</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Persentase Laki-laki vs Perempuan</p>
+              </div>
+              <div className="h-64 w-full flex items-center justify-center relative mt-4">
+                {filteredMembers.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Laki-laki', value: genderStats.L.count, color: '#3b82f6' },
+                          { name: 'Perempuan', value: genderStats.P.count, color: '#ec4899' }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        <Cell fill="#3b82f6" />
+                        <Cell fill="#ec4899" />
+                      </Pie>
+                      <RechartsTooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const d = payload[0].payload;
+                            const pct = genderStats.total > 0 ? Math.round((d.value / genderStats.total) * 100) : 0;
+                            return (
+                              <div className="bg-white text-gray-800 text-xs rounded-xl p-3 shadow-xl border border-gray-100">
+                                <p className="font-bold">{d.name}</p>
+                                <p className="text-gray-500 mt-1">Jumlah: <span className="font-bold text-gray-800">{d.value.toLocaleString('id')}</span></p>
+                                <p className="text-gray-500">Porsi: <span className="font-bold text-gray-800">{pct}%</span></p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-gray-400 text-xs">Belum ada data</p>
+                )}
+                {filteredMembers.length > 0 && (
+                  <div className="absolute flex flex-col items-center justify-center">
+                    <span className="text-2xl font-black text-gray-800">{filteredMembers.length}</span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Jiwa</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-center gap-6 mt-auto pt-4 border-t border-gray-50">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="text-xs font-semibold text-gray-600">Laki-laki ({genderStats.L.pct}%)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-pink-500"></div>
+                  <span className="text-xs font-semibold text-gray-600">Perempuan ({genderStats.P.pct}%)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Education Level Chart */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 lg:col-span-2 flex flex-col">
+              <div>
+                <h3 className="font-bold text-gray-800 text-sm">Tingkat Pendidikan Responden</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Distribusi jenjang pendidikan terdata</p>
+              </div>
+              <div className="h-64 w-full mt-4 flex-1">
+                {filteredMembers.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={educationStats}
+                      layout="vertical"
+                      margin={{ top: 10, right: 30, left: 40, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11, fontWeight: 'bold' }} width={80} />
+                      <RechartsTooltip
+                        cursor={{ fill: '#f8fafc' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const d = payload[0].payload;
+                            return (
+                              <div className="bg-white text-gray-800 text-xs rounded-xl p-3 shadow-xl border border-gray-100">
+                                <p className="font-bold text-gray-900 border-b pb-1 mb-1">{d.name}</p>
+                                <p className="text-gray-500">Responden: <span className="font-bold text-gray-800">{d.Jumlah.toLocaleString('id')} orang</span></p>
+                                <p className="text-gray-500">Persentase: <span className="font-bold text-gray-800">{d.Persentase}%</span></p>
+                              </div>
+                            )
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar dataKey="Jumlah" fill="#3b82f6" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                        {educationStats.map((entry, index) => {
+                          const colors = ['#94a3b8', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
+                          return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-400 text-xs">Belum ada data</div>
+                )}
+              </div>
+            </div>
+
+            {/* Occupation Distribution Chart */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 lg:col-span-3 flex flex-col">
+              <div>
+                <h3 className="font-bold text-gray-800 text-sm">Distribusi Pekerjaan Responden</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Pekerjaan terdata diurutkan dari yang paling umum</p>
+              </div>
+              <div className="h-80 w-full mt-4 flex-1">
+                {filteredMembers.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={occupationStats.slice(0, 10)}
+                      layout="vertical"
+                      margin={{ top: 10, right: 30, left: 60, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11, fontWeight: 'bold' }} width={120} />
+                      <RechartsTooltip
+                        cursor={{ fill: '#f8fafc' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const d = payload[0].payload;
+                            return (
+                              <div className="bg-white text-gray-800 text-xs rounded-xl p-3 shadow-xl border border-gray-100">
+                                <p className="font-bold text-gray-900 border-b pb-1 mb-1">{d.name}</p>
+                                <p className="text-gray-500">Responden: <span className="font-bold text-gray-800">{d.Jumlah.toLocaleString('id')} orang</span></p>
+                                <p className="text-gray-500">Persentase: <span className="font-bold text-gray-800">{d.Persentase}%</span></p>
+                              </div>
+                            )
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar dataKey="Jumlah" fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                        {occupationStats.slice(0, 10).map((entry, index) => {
+                          const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#94a3b8', '#14b8a6', '#ef4444', '#f97316', '#64748b']
+                          return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-400 text-xs">Belum ada data</div>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Regional Stacked Demographic Distribution Chart */}
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+            <div className="border-b border-gray-100 bg-gray-50/50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-gray-800 text-sm">Analisis Distribusi Wilayah</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Analisis spasial demografi responden berdasarkan {isSuperAdmin && filterPuskesmas === 'ALL' ? 'Puskesmas' : 'Desa'}</p>
+              </div>
+              <div className="flex gap-2">
+                {[
+                  { id: 'gender', label: '👫 Jenis Kelamin', color: '#3b82f6' },
+                  { id: 'education', label: '🎓 Pendidikan', color: '#8b5cf6' },
+                  { id: 'occupation', label: '💼 Pekerjaan', color: '#10b981' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveDemographicBreakdown(tab.id as any)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all border-2 ${
+                      activeDemographicBreakdown === tab.id
+                        ? 'text-white shadow-md'
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                    }`}
+                    style={activeDemographicBreakdown === tab.id ? { backgroundColor: tab.color, borderColor: tab.color } : {}}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="h-[480px] w-full">
+                {regionalDemographicData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={regionalDemographicData}
+                      margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                      <XAxis 
+                        dataKey="name" 
+                        height={120}
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#6b7280', fontSize: 10 }} 
+                        angle={-40} 
+                        textAnchor="end"
+                        interval={0}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#6b7280', fontSize: 12 }}
+                      />
+                      <RechartsTooltip
+                        cursor={{ fill: '#f3f4f6' }}
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-white text-gray-800 text-xs rounded-xl p-4 shadow-2xl border border-gray-100 max-w-[280px]">
+                                <p className="font-bold text-gray-900 mb-2 border-b border-gray-100 pb-2">{label}</p>
+                                <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+                                  {payload.map((item, i) => {
+                                    const total = payload[0].payload.Total;
+                                    const pct = total > 0 ? Math.round((Number(item.value) / total) * 100) : 0;
+                                    return (
+                                      <p key={i} className="flex justify-between gap-4 text-gray-600 font-medium">
+                                        <span className="flex items-center gap-1.5">
+                                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></span>
+                                          {item.name}:
+                                        </span>
+                                        <span className="font-bold text-gray-800">
+                                          {item.value} <span className="text-[10px] text-gray-400 font-normal">({pct}%)</span>
+                                        </span>
+                                      </p>
+                                    );
+                                  })}
+                                </div>
+                                <p className="mt-2 pt-1 border-t border-gray-100 text-right text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                  Total: {payload[0].payload.Total} Responden
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Legend 
+                        iconType="circle"
+                        wrapperStyle={{ paddingTop: 10, fontSize: 12, fontWeight: 'semibold' }}
+                      />
+                      {regionalBars.map(bar => (
+                        <Bar 
+                          key={bar.key}
+                          dataKey={bar.key} 
+                          stackId="a" 
+                          fill={bar.color} 
+                          maxBarSize={50}
+                        />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-400 text-xs">
+                    Belum ada data untuk filter wilayah ini.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
 

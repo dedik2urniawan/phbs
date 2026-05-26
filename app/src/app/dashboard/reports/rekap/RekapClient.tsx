@@ -242,6 +242,19 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
   const renderDetailRekapTable = () => {
     const groupByPuskesmas = isSuperAdmin && selectedPuskesmas === 'all'
     
+    // Calculate grand totals for Detail Rekap Table
+    const grandTotalKkTarget = detailRekapList.reduce((sum, r) => sum + (r.totalKkTarget || 0), 0)
+    const grandPhbsStats = PHBS_INDICATORS.map((ind, idx) => {
+      const numSum = detailRekapList.reduce((sum, r) => sum + (r.phbsStats[idx]?.num || 0), 0)
+      const pct = grandTotalKkTarget > 0 ? Math.round((numSum / grandTotalKkTarget) * 10) / 10 : 0
+      return { key: ind.key, num: numSum, pct }
+    })
+    const grandNonPhbsStats = NON_PHBS_INDICATORS.map((ind, idx) => {
+      const numSum = detailRekapList.reduce((sum, r) => sum + (r.nonPhbsStats[idx]?.num || 0), 0)
+      const pct = grandTotalKkTarget > 0 ? Math.round((numSum / grandTotalKkTarget) * 10) / 10 : 0
+      return { key: ind.key, num: numSum, pct }
+    })
+
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8 print-section">
         <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white hide-on-print">
@@ -296,7 +309,32 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
                     {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-700 print:text-black">{s.pct.toFixed(1).replace('.', ',')}</td>)}
                   </tr>
                 </React.Fragment>
-              )) : (
+              )) : null}
+              {detailRekapList.length > 0 && (
+                <React.Fragment>
+                  {/* Row TOTAL */}
+                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 hover:bg-gray-100/80 transition-colors">
+                    <td rowSpan={3} className="border border-gray-200 print:border-black px-2 text-center text-gray-700 font-bold">∑</td>
+                    <td rowSpan={3} className="border border-gray-200 print:border-black px-4 font-bold text-gray-900 uppercase">JUMLAH TOTAL</td>
+                    <td className="border border-gray-200 print:border-black px-4 font-bold text-center text-gray-700">TOTAL</td>
+                    {grandPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{grandTotalKkTarget}</td>)}
+                    {grandNonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{grandTotalKkTarget}</td>)}
+                  </tr>
+                  {/* Row YG DI KAJI */}
+                  <tr className="bg-gray-100 font-bold hover:bg-gray-100/80 transition-colors">
+                    <td className="border border-gray-200 print:border-black px-4 font-bold text-center text-gray-700">YG DI KAJI</td>
+                    {grandPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{s.num}</td>)}
+                    {grandNonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{s.num}</td>)}
+                  </tr>
+                  {/* Row % */}
+                  <tr className="bg-emerald-100 font-bold hover:bg-emerald-100/80 transition-colors">
+                    <td className="border border-gray-200 print:border-black px-4 text-center text-emerald-900">%</td>
+                    {grandPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-800">{s.pct.toFixed(1).replace('.', ',')}</td>)}
+                    {grandNonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-800">{s.pct.toFixed(1).replace('.', ',')}</td>)}
+                  </tr>
+                </React.Fragment>
+              )}
+              {detailRekapList.length === 0 && (
                 <tr>
                   <td colSpan={14} className="border border-black px-4 py-8 text-center text-gray-500">Belum ada data sasaran atau survei untuk ditampilkan.</td>
                 </tr>
@@ -311,6 +349,11 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
   const renderRumahSehatTable = () => {
     const groupByPuskesmas = isSuperAdmin && selectedPuskesmas === 'all'
     
+    const grandTotalDisurvei = rumahSehatList.reduce((sum, r) => sum + (r.totalDisurvei || 0), 0)
+    const grandSehat = rumahSehatList.reduce((sum, r) => sum + (r.sehat || 0), 0)
+    const grandTidakSehat = rumahSehatList.reduce((sum, r) => sum + (r.tidakSehat || 0), 0)
+    const grandPctSehat = grandTotalDisurvei > 0 ? Math.round((grandSehat / grandTotalDisurvei) * 100) : 0
+
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-8 print-section">
         <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white hide-on-print">
@@ -350,7 +393,21 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
                     </tr>
                   )
                 })
-              ) : (
+              ) : null}
+              {rumahSehatList.length > 0 && (
+                <tr className="bg-blue-50 font-bold border-t-2 border-blue-200 hover:bg-blue-100 transition-colors">
+                  <td className="px-6 py-5 font-bold text-gray-900 uppercase">JUMLAH TOTAL</td>
+                  <td className="px-6 py-5 text-center font-bold text-gray-900">{grandTotalDisurvei}</td>
+                  <td className="px-6 py-5 text-center font-bold text-emerald-700">{grandSehat}</td>
+                  <td className="px-6 py-5 text-center font-bold text-red-600">{grandTidakSehat}</td>
+                  <td className="px-6 py-5 text-center">
+                    <span className="px-3 py-1.5 rounded-full text-xs font-extrabold bg-blue-600 text-white shadow-md shadow-blue-500/20">
+                      {grandPctSehat}%
+                    </span>
+                  </td>
+                </tr>
+              )}
+              {rumahSehatList.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium">Belum ada data survei.</td>
                 </tr>
