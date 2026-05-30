@@ -241,59 +241,130 @@ export default function LandingPage() {
       </section>
 
       {/* ===== 17 INDIKATOR ===== */}
-      <section id="indikator" className="py-20 bg-white">
+      <section id="indikator" className="py-24 bg-gray-50/60">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <span className="text-emerald-600 font-semibold text-sm tracking-wide uppercase">Parameter Penilaian</span>
-            <h2 className="text-3xl md:text-4xl font-heading font-black text-gray-900 mt-3 mb-4">17 Indikator PHBS Tatanan Rumah Tangga</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto">
-              Setiap rumah tangga dinilai berdasarkan 17 indikator perilaku hidup bersih dan sehat sesuai pedoman Kementerian Kesehatan RI
+
+          {/* Section header */}
+          <div className="text-center mb-14">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-100 text-emerald-700 font-semibold text-xs tracking-widest uppercase rounded-full mb-4">
+              📋 Parameter Penilaian
+            </span>
+            <h2 className="text-3xl md:text-4xl font-heading font-black text-gray-900 mt-2 mb-4">
+              17 Indikator PHBS <span className="text-emerald-600">Tatanan Rumah Tangga</span>
+            </h2>
+            <p className="text-gray-500 max-w-2xl mx-auto leading-relaxed">
+              Setiap rumah tangga dinilai berdasarkan <strong className="text-gray-700">17 indikator</strong> perilaku hidup bersih dan sehat sesuai pedoman <strong className="text-gray-700">Kementerian Kesehatan RI</strong>
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {INDICATORS.map(ind => (
-              <div key={ind.no}
-                className="group bg-white hover:bg-emerald-50 border border-gray-100 hover:border-emerald-300 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-default">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-100 w-6 h-6 rounded-full flex items-center justify-center">{ind.no}</span>
-                  <span className="text-xl">{ind.icon}</span>
-                </div>
-                <h3 className="font-heading font-bold text-gray-800 text-sm mb-2">{ind.title}</h3>
-                <p className="text-gray-500 text-xs leading-relaxed">{ind.desc}</p>
+          {/* Group 1: Indikator PHBS Inti */}
+          <div className="mb-10">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-1.5 rounded-full text-xs font-bold tracking-wide shadow-sm">
+                <span>🏠</span> Indikator PHBS Inti
               </div>
-            ))}
+              <div className="flex-1 h-px bg-emerald-200" />
+              <span className="text-xs text-gray-400 font-medium">No. 1–10</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {INDICATORS.slice(0, 10).map(ind => (
+                <div key={ind.no}
+                  className="group relative bg-white hover:bg-emerald-50 border border-gray-100 hover:border-emerald-300 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 cursor-default overflow-hidden">
+                  <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-50 group-hover:bg-emerald-100 rounded-bl-2xl transition-colors -mr-2 -mt-2" />
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[11px] font-black text-white bg-emerald-500 w-5 h-5 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">{ind.no}</span>
+                    <span className="text-lg leading-none">{ind.icon}</span>
+                  </div>
+                  <h3 className="font-heading font-bold text-gray-800 text-xs mb-1 leading-snug">{ind.title}</h3>
+                  <p className="text-gray-400 text-[10px] leading-relaxed">{ind.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Kategori PHBS */}
-          <div className="mt-12 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-8">
-            <h3 className="font-heading font-black text-gray-800 text-2xl mb-8 text-center">Kategori Capaian PHBS</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-              <div className="border border-emerald-200 bg-emerald-100/50 rounded-2xl p-6 text-center shadow-sm relative overflow-hidden group hover:border-emerald-400 transition-colors">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-200/50 rounded-bl-full -mr-12 -mt-12 group-hover:scale-110 transition-transform"></div>
-                <div className="w-16 h-16 mx-auto bg-emerald-500 text-white rounded-full flex items-center justify-center text-3xl mb-4 shadow-sm relative z-10">
+          {/* Group 2: Kesehatan Ibu & Anak */}
+          <div className="mb-10">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center gap-2 bg-rose-500 text-white px-4 py-1.5 rounded-full text-xs font-bold tracking-wide shadow-sm">
+                <span>🤱</span> Kesehatan Ibu &amp; Anak
+              </div>
+              <div className="flex-1 h-px bg-rose-200" />
+              <span className="text-xs text-gray-400 font-medium">No. 11–16</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {INDICATORS.slice(10, 16).map(ind => (
+                <div key={ind.no}
+                  className="group relative bg-white hover:bg-rose-50 border border-gray-100 hover:border-rose-300 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 cursor-default overflow-hidden">
+                  <div className="absolute top-0 right-0 w-12 h-12 bg-rose-50 group-hover:bg-rose-100 rounded-bl-2xl transition-colors -mr-2 -mt-2" />
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[11px] font-black text-white bg-rose-500 w-5 h-5 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">{ind.no}</span>
+                    <span className="text-lg leading-none">{ind.icon}</span>
+                  </div>
+                  <h3 className="font-heading font-bold text-gray-800 text-xs mb-1 leading-snug">{ind.title}</h3>
+                  <p className="text-gray-400 text-[10px] leading-relaxed">{ind.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Group 3: Kesehatan Remaja */}
+          <div className="mb-12">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-center gap-2 bg-violet-600 text-white px-4 py-1.5 rounded-full text-xs font-bold tracking-wide shadow-sm">
+                <span>💊</span> Kesehatan Remaja
+              </div>
+              <div className="flex-1 h-px bg-violet-200" />
+              <span className="text-xs text-gray-400 font-medium">No. 17</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {INDICATORS.slice(16).map(ind => (
+                <div key={ind.no}
+                  className="group relative bg-white hover:bg-violet-50 border border-gray-100 hover:border-violet-300 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 cursor-default overflow-hidden">
+                  <div className="absolute top-0 right-0 w-12 h-12 bg-violet-50 group-hover:bg-violet-100 rounded-bl-2xl transition-colors -mr-2 -mt-2" />
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[11px] font-black text-white bg-violet-600 w-5 h-5 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">{ind.no}</span>
+                    <span className="text-lg leading-none">{ind.icon}</span>
+                  </div>
+                  <h3 className="font-heading font-bold text-gray-800 text-xs mb-1 leading-snug">{ind.title}</h3>
+                  <p className="text-gray-400 text-[10px] leading-relaxed">{ind.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Kategori Capaian PHBS */}
+          <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
+            <div className="text-center mb-8">
+              <h3 className="font-heading font-black text-gray-800 text-2xl">Kategori Capaian PHBS</h3>
+              <p className="text-gray-500 text-sm mt-1">Klasifikasi status kesehatan rumah tangga berdasarkan pemenuhan indikator</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl mx-auto">
+              <div className="group relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-6 text-center transition-all duration-300 hover:shadow-lg">
+                <div className="absolute -top-6 -right-6 w-20 h-20 bg-emerald-200/40 rounded-full group-hover:scale-150 transition-transform duration-500" />
+                <div className="w-14 h-14 mx-auto bg-emerald-500 text-white rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-md shadow-emerald-200 relative z-10">
                   🏡
                 </div>
-                <h4 className="font-heading font-black text-2xl text-emerald-800 mb-2">Rumah Sehat</h4>
-                <p className="text-4xl font-heading font-black text-emerald-600 mb-2">100%</p>
-                <p className="text-sm text-emerald-800/80 font-medium">
-                  Seluruh indikator PHBS yang relevan di rumah tangga terpenuhi dengan baik.
+                <h4 className="font-heading font-black text-xl text-emerald-800 mb-1">Rumah Tangga Sehat</h4>
+                <p className="text-3xl font-heading font-black text-emerald-600 mb-3">100%</p>
+                <p className="text-xs text-emerald-700/80 font-medium leading-relaxed">
+                  Seluruh indikator PHBS yang relevan terpenuhi dengan baik di rumah tangga tersebut.
                 </p>
               </div>
 
-              <div className="border border-red-200 bg-red-100/50 rounded-2xl p-6 text-center shadow-sm relative overflow-hidden group hover:border-red-400 transition-colors">
-                <div className="absolute top-0 left-0 w-24 h-24 bg-red-200/50 rounded-br-full -ml-12 -mt-12 group-hover:scale-110 transition-transform"></div>
-                <div className="w-16 h-16 mx-auto bg-red-500 text-white rounded-full flex items-center justify-center text-3xl mb-4 shadow-sm relative z-10">
+              <div className="group relative overflow-hidden bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-200 hover:border-red-400 rounded-2xl p-6 text-center transition-all duration-300 hover:shadow-lg">
+                <div className="absolute -top-6 -left-6 w-20 h-20 bg-red-200/40 rounded-full group-hover:scale-150 transition-transform duration-500" />
+                <div className="w-14 h-14 mx-auto bg-red-500 text-white rounded-2xl flex items-center justify-center text-2xl mb-4 shadow-md shadow-red-200 relative z-10">
                   🏚️
                 </div>
-                <h4 className="font-heading font-black text-2xl text-red-800 mb-2">Rumah Tidak Sehat</h4>
-                <p className="text-4xl font-heading font-black text-red-600 mb-2">&lt; 100%</p>
-                <p className="text-sm text-red-800/80 font-medium">
+                <h4 className="font-heading font-black text-xl text-red-800 mb-1">Rumah Tangga Tidak Sehat</h4>
+                <p className="text-3xl font-heading font-black text-red-600 mb-3">&lt; 100%</p>
+                <p className="text-xs text-red-700/80 font-medium leading-relaxed">
                   Masih terdapat satu atau lebih indikator PHBS yang belum terpenuhi di rumah tangga.
                 </p>
               </div>
             </div>
           </div>
+
         </div>
       </section>
 
