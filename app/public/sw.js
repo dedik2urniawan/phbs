@@ -1,15 +1,14 @@
-const CACHE_NAME = 'sim-phbs-v2'
+// CACHE VERSION — bump ini setiap kali ada deployment besar untuk invalidate semua cache lama
+const CACHE_NAME = 'sim-phbs-v3'
+
 const STATIC_ASSETS = [
-  '/',
-  '/login',
-  '/entry',
   '/manifest.json',
-  '/promkes.png'
+  '/promkes.png',
 ]
 
-// Install: cache static assets
+// Install: pre-cache minimal assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing...')
+  console.log('[SW] Installing v3...')
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
@@ -19,61 +18,94 @@ self.addEventListener('install', (event) => {
   )
 })
 
-// Activate: clean old caches
+// Activate: delete ALL old caches immediately
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating...')
+  console.log('[SW] Activating v3, clearing old caches...')
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys.filter((key) => key !== CACHE_NAME).map((key) => {
+          console.log('[SW] Deleting old cache:', key)
+          return caches.delete(key)
+        })
       )
     }).then(() => self.clients.claim())
   )
 })
 
-// Fetch: network-first for API, network-first for navigation, cache-first for static
+// Fetch strategy per resource type
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
   if (request.method !== 'GET') return
-  if (url.origin !== self.location.origin && !url.hostname.includes('supabase.co')) return
 
-  // For API calls (supabase), always go network
+  // ── Supabase API: always network, never cache
   if (url.hostname.includes('supabase.co')) {
-    event.respondWith(fetch(request).catch(() => new Response('{}', { headers: { 'Content-Type': 'application/json' } })))
-    return
-  }
-
-  // For navigation requests (HTML), Network First with Cache Fallback
-  if (request.mode === 'navigate' || (request.headers.get('accept') && request.headers.get('accept').includes('text/html'))) {
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
-          return response
-        })
-        .catch(() => caches.match(request).then(cached => {
-            if (cached) return cached;
-            return caches.match('/entry'); // Fallback to /entry if possible
-        }))
+      fetch(request).catch(() => new Response('{}', {
+        headers: { 'Content-Type': 'application/json' }
+      }))
     )
     return
   }
 
-  // For static assets: Stale-While-Revalidate
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const fetchPromise = fetch(request).then((response) => {
-        if (response && response.status === 200 && response.type !== 'opaque') {
+  // Skip cross-origin requests (CDNs, tile servers, etc.)
+  if (url.origin !== self.location.origin) return
+
+  // ── Next.js JS/CSS chunks: Network-First (CRITICAL — prevents hydration mismatch)
+  // These files change on every deployment. Always fetch fresh from network.
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          }
+          return response
+        })
+        .catch(() => caches.match(request)) // fallback to cache only if network fails
+    )
+    return
+  }
+
+  // ── HTML navigation: Network-First with offline fallback
+  if (
+    request.mode === 'navigate' ||
+    (request.headers.get('accept') && request.headers.get('accept').includes('text/html'))
+  ) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-        }
-        return response
-      }).catch(() => {
-        // ignore fetch error in swr
-      })
+          return response
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => {
+            if (cached) return cached
+            return caches.match('/entry') // offline fallback untuk surveyor
+          })
+        )
+    )
+    return
+  }
+
+  // ── Static assets (images, fonts, geojson): Stale-While-Revalidate
+  // Gambar & GeoJSON boleh dari cache, update di background
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const fetchPromise = fetch(request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type !== 'opaque') {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          }
+          return response
+        })
+        .catch(() => undefined)
+
       return cached || fetchPromise
     })
   )

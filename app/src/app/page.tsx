@@ -1,75 +1,4 @@
-'use client'
-import { useState, useEffect, useRef } from 'react'
-
-function AnimatedCounter({ value, duration = 2000 }: { value: string, duration?: number }) {
-  const [displayValue, setDisplayValue] = useState('0')
-  const countRef = useRef<HTMLSpanElement>(null)
-  const [hasAnimated, setHasAnimated] = useState(false)
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !hasAnimated) {
-          setHasAnimated(true)
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    if (countRef.current) observer.observe(countRef.current)
-    return () => observer.disconnect()
-  }, [hasAnimated])
-
-  useEffect(() => {
-    if (!hasAnimated) return
-
-    const isRange = value.includes('-')
-    const isPercentage = value.includes('%')
-    const cleanValue = value.replace(/[.%]/g, '')
-    
-    if (isRange) {
-      const parts = value.split('-').map(p => parseInt(p.replace(/[^0-9]/g, '')))
-      let startTimestamp: number | null = null
-      
-      const step = (timestamp: number) => {
-        if (!startTimestamp) startTimestamp = timestamp
-        const progress = Math.min((timestamp - startTimestamp) / duration, 1)
-        
-        const v1 = Math.floor(progress * parts[0])
-        const v2 = Math.floor(progress * parts[1])
-        
-        setDisplayValue(`${v1}-${v2}${isPercentage ? '%' : ''}`)
-        
-        if (progress < 1) {
-          window.requestAnimationFrame(step)
-        }
-      }
-      window.requestAnimationFrame(step)
-    } else {
-      const target = parseInt(cleanValue)
-      let startTimestamp: number | null = null
-      
-      const step = (timestamp: number) => {
-        if (!startTimestamp) startTimestamp = timestamp
-        const progress = Math.min((timestamp - startTimestamp) / duration, 1)
-        const current = Math.floor(progress * target)
-        
-        const formatted = value.includes('.') 
-          ? current.toLocaleString('id-ID')
-          : current.toString()
-          
-        setDisplayValue(formatted + (isPercentage ? '%' : ''))
-        
-        if (progress < 1) {
-          window.requestAnimationFrame(step)
-        }
-      }
-      window.requestAnimationFrame(step)
-    }
-  }, [hasAnimated, value, duration])
-
-  return <span ref={countRef}>{displayValue}</span>
-}
+import AnimatedCounter from './AnimatedCounter'
 
 const INDICATORS = [
   { no: 1, icon: '🤱', title: 'Persalinan Nakes', desc: 'Persalinan ditolong tenaga kesehatan terlatih' },
@@ -269,14 +198,15 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {INDICATORS.slice(0, 10).map(ind => (
                 <div key={ind.no}
-                  className="group relative bg-white hover:bg-emerald-50 border border-gray-100 hover:border-emerald-300 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 cursor-default overflow-hidden">
-                  <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-50 group-hover:bg-emerald-100 rounded-bl-2xl transition-colors -mr-2 -mt-2" />
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-[11px] font-black text-white bg-emerald-500 w-5 h-5 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">{ind.no}</span>
-                    <span className="text-lg leading-none">{ind.icon}</span>
+                  className="group relative bg-white/60 backdrop-blur-md border border-white/40 hover:border-emerald-400/50 rounded-2xl p-5 transition-all duration-500 hover:shadow-[0_8px_30px_rgb(16,185,129,0.12)] hover:-translate-y-1 cursor-default overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-emerald-100/80 to-transparent rounded-bl-3xl opacity-50 group-hover:opacity-100 transition-all duration-500 -mr-2 -mt-2" />
+                  <div className="relative z-10 flex items-center gap-3 mb-4">
+                    <span className="text-[11px] font-black text-white bg-gradient-to-br from-emerald-400 to-emerald-600 w-6 h-6 rounded-full flex items-center justify-center shadow-md shadow-emerald-200 flex-shrink-0">{ind.no}</span>
+                    <span className="text-2xl filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300">{ind.icon}</span>
                   </div>
-                  <h3 className="font-heading font-bold text-gray-800 text-xs mb-1 leading-snug">{ind.title}</h3>
-                  <p className="text-gray-400 text-[10px] leading-relaxed">{ind.desc}</p>
+                  <h3 className="relative z-10 font-heading font-bold text-gray-800 text-sm mb-1.5 leading-snug group-hover:text-emerald-700 transition-colors">{ind.title}</h3>
+                  <p className="relative z-10 text-gray-500 text-[11px] leading-relaxed group-hover:text-gray-600 transition-colors">{ind.desc}</p>
                 </div>
               ))}
             </div>
@@ -294,14 +224,15 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {INDICATORS.slice(10, 16).map(ind => (
                 <div key={ind.no}
-                  className="group relative bg-white hover:bg-rose-50 border border-gray-100 hover:border-rose-300 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 cursor-default overflow-hidden">
-                  <div className="absolute top-0 right-0 w-12 h-12 bg-rose-50 group-hover:bg-rose-100 rounded-bl-2xl transition-colors -mr-2 -mt-2" />
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-[11px] font-black text-white bg-rose-500 w-5 h-5 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">{ind.no}</span>
-                    <span className="text-lg leading-none">{ind.icon}</span>
+                  className="group relative bg-white/60 backdrop-blur-md border border-white/40 hover:border-rose-400/50 rounded-2xl p-5 transition-all duration-500 hover:shadow-[0_8px_30px_rgb(244,63,94,0.12)] hover:-translate-y-1 cursor-default overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-rose-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-rose-100/80 to-transparent rounded-bl-3xl opacity-50 group-hover:opacity-100 transition-all duration-500 -mr-2 -mt-2" />
+                  <div className="relative z-10 flex items-center gap-3 mb-4">
+                    <span className="text-[11px] font-black text-white bg-gradient-to-br from-rose-400 to-rose-600 w-6 h-6 rounded-full flex items-center justify-center shadow-md shadow-rose-200 flex-shrink-0">{ind.no}</span>
+                    <span className="text-2xl filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300">{ind.icon}</span>
                   </div>
-                  <h3 className="font-heading font-bold text-gray-800 text-xs mb-1 leading-snug">{ind.title}</h3>
-                  <p className="text-gray-400 text-[10px] leading-relaxed">{ind.desc}</p>
+                  <h3 className="relative z-10 font-heading font-bold text-gray-800 text-sm mb-1.5 leading-snug group-hover:text-rose-700 transition-colors">{ind.title}</h3>
+                  <p className="relative z-10 text-gray-500 text-[11px] leading-relaxed group-hover:text-gray-600 transition-colors">{ind.desc}</p>
                 </div>
               ))}
             </div>
@@ -319,14 +250,15 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {INDICATORS.slice(16).map(ind => (
                 <div key={ind.no}
-                  className="group relative bg-white hover:bg-violet-50 border border-gray-100 hover:border-violet-300 rounded-2xl p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 cursor-default overflow-hidden">
-                  <div className="absolute top-0 right-0 w-12 h-12 bg-violet-50 group-hover:bg-violet-100 rounded-bl-2xl transition-colors -mr-2 -mt-2" />
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-[11px] font-black text-white bg-violet-600 w-5 h-5 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">{ind.no}</span>
-                    <span className="text-lg leading-none">{ind.icon}</span>
+                  className="group relative bg-white/60 backdrop-blur-md border border-white/40 hover:border-violet-400/50 rounded-2xl p-5 transition-all duration-500 hover:shadow-[0_8px_30px_rgb(139,92,246,0.12)] hover:-translate-y-1 cursor-default overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-violet-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-violet-100/80 to-transparent rounded-bl-3xl opacity-50 group-hover:opacity-100 transition-all duration-500 -mr-2 -mt-2" />
+                  <div className="relative z-10 flex items-center gap-3 mb-4">
+                    <span className="text-[11px] font-black text-white bg-gradient-to-br from-violet-400 to-violet-600 w-6 h-6 rounded-full flex items-center justify-center shadow-md shadow-violet-200 flex-shrink-0">{ind.no}</span>
+                    <span className="text-2xl filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300">{ind.icon}</span>
                   </div>
-                  <h3 className="font-heading font-bold text-gray-800 text-xs mb-1 leading-snug">{ind.title}</h3>
-                  <p className="text-gray-400 text-[10px] leading-relaxed">{ind.desc}</p>
+                  <h3 className="relative z-10 font-heading font-bold text-gray-800 text-sm mb-1.5 leading-snug group-hover:text-violet-700 transition-colors">{ind.title}</h3>
+                  <p className="relative z-10 text-gray-500 text-[11px] leading-relaxed group-hover:text-gray-600 transition-colors">{ind.desc}</p>
                 </div>
               ))}
             </div>
