@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import SyncStatusBar from '@/components/SyncStatusBar'
@@ -40,6 +40,8 @@ export default function HouseholdsClient({
   const [households, setHouseholds]     = useState<Household[]>(initialHouseholds)
   const [total, setTotal]               = useState(totalCount)
   const [loading, setLoading]           = useState(false)
+  const [searchResults, setSearchResults] = useState<Household[] | null>(null)
+  const [isSearching, setIsSearching]   = useState(false)
   const [currentPage, setCurrentPage]   = useState(1)
   const itemsPerPage = 10
   const puskesmasName = appUser?.ref_puskesmas?.nama || 'Dinkes Kab. Malang'
@@ -83,6 +85,38 @@ export default function HouseholdsClient({
     setLoading(false)
   }, [supabase])
 
+  // React useEffect for Debounced Server-Side Search
+  
+  useEffect(() => {
+    if (!search.trim()) {
+      setSearchResults(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true)
+      let query = supabase
+        .from('households')
+        .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))')
+        .or(`nama_kk.ilike.%${search}%,no_kk.ilike.%${search}%`)
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      if (!isSuperAdmin && appUser.puskesmas_id) {
+        query = query.eq('puskesmas_id', appUser.puskesmas_id)
+      } else if (isSuperAdmin && selectedPkm) {
+        query = query.eq('puskesmas_id', selectedPkm)
+      }
+
+      const { data } = await query
+      setSearchResults(data || [])
+      setIsSearching(false)
+      setCurrentPage(1)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [search, selectedPkm, isSuperAdmin, appUser.puskesmas_id, supabase])
+
   const handleDelete = async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus data KK ini? Data survei yang terkait juga mungkin akan terhapus.')) return;
     
@@ -95,10 +129,14 @@ export default function HouseholdsClient({
     }
   }
 
-  const filtered = households.filter(h => {
-    const matchSearch = !search ||
+  const sourceData = searchResults !== null ? searchResults : households
+
+  const filtered = sourceData.filter(h => {
+    const matchSearch = searchResults !== null ? true : (
+      !search ||
       h.nama_kk.toLowerCase().includes(search.toLowerCase()) ||
       h.no_kk.includes(search)
+    )
     const matchDesa = !filterDesa || h.ref_desa?.desa_kel === filterDesa
     return matchSearch && matchDesa
   })
@@ -207,13 +245,13 @@ export default function HouseholdsClient({
         </div>
 
         {/* Content */}
-        {loading ? (
+        {loading || isSearching ? (
           <div className="text-center py-16">
             <svg className="animate-spin h-8 w-8 text-emerald-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            <p className="text-gray-400 text-sm">Memuat data...</p>
+            <p className="text-gray-400 text-sm">{isSearching ? 'Mencari data di server...' : 'Memuat data...'}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
