@@ -19,6 +19,13 @@ export default function UsersClient({ users, isSuperAdmin }: { users: UserData[]
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
 
+  // Password Validators
+  const isValidLength = newPassword.length >= 8
+  const hasUpperCase = /[A-Z]/.test(newPassword)
+  const hasNumber = /[0-9]/.test(newPassword)
+  const hasSpecialChar = /[^A-Za-z0-9]/.test(newPassword)
+  const isPasswordValid = isValidLength && hasUpperCase && hasNumber && hasSpecialChar
+
   const openModal = (user: UserData) => {
     setSelectedUser(user)
     setNewPassword('')
@@ -32,7 +39,7 @@ export default function UsersClient({ users, isSuperAdmin }: { users: UserData[]
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedUser || newPassword.length < 6) return
+    if (!selectedUser || !isPasswordValid) return
 
     setIsSubmitting(true)
     setToast(null)
@@ -148,18 +155,36 @@ export default function UsersClient({ users, isSuperAdmin }: { users: UserData[]
                   <input 
                     type="password" 
                     required 
-                    minLength={6}
+                    minLength={8}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimal 6 karakter"
+                    placeholder="Masukkan kata sandi yang kuat..."
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none font-medium"
                   />
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className={`flex items-center gap-2 text-[11px] font-medium transition-colors ${isValidLength ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      <span className={`w-4 h-4 flex items-center justify-center rounded-full ${isValidLength ? 'bg-emerald-100' : 'bg-gray-100'}`}>{isValidLength ? '✓' : '○'}</span> 
+                      Minimal 8 Karakter
+                    </div>
+                    <div className={`flex items-center gap-2 text-[11px] font-medium transition-colors ${hasUpperCase ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      <span className={`w-4 h-4 flex items-center justify-center rounded-full ${hasUpperCase ? 'bg-emerald-100' : 'bg-gray-100'}`}>{hasUpperCase ? '✓' : '○'}</span> 
+                      Huruf Besar (A-Z)
+                    </div>
+                    <div className={`flex items-center gap-2 text-[11px] font-medium transition-colors ${hasNumber ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      <span className={`w-4 h-4 flex items-center justify-center rounded-full ${hasNumber ? 'bg-emerald-100' : 'bg-gray-100'}`}>{hasNumber ? '✓' : '○'}</span> 
+                      Angka (0-9)
+                    </div>
+                    <div className={`flex items-center gap-2 text-[11px] font-medium transition-colors ${hasSpecialChar ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      <span className={`w-4 h-4 flex items-center justify-center rounded-full ${hasSpecialChar ? 'bg-emerald-100' : 'bg-gray-100'}`}>{hasSpecialChar ? '✓' : '○'}</span> 
+                      Karakter Unik (@#$)
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <button 
                 type="submit" 
-                disabled={isSubmitting || newPassword.length < 6}
+                disabled={isSubmitting || !isPasswordValid}
                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:from-gray-300 disabled:to-gray-300 disabled:text-gray-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-emerald-500/30 disabled:shadow-none transition-all active:scale-[0.98]"
               >
                 {isSubmitting ? 'Memproses...' : 'Simpan Password Baru'}
