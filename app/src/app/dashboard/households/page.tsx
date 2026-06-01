@@ -42,7 +42,7 @@ export default async function HouseholdsPage() {
     .from('households')
     .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(20)
+    .limit(1000)
 
   if (!isSuperAdmin) {
     householdsQuery = householdsQuery.eq('puskesmas_id', appUser?.puskesmas_id)
