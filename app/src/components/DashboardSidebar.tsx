@@ -48,7 +48,7 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
     menuItems.push({ icon: '🏷️', label: 'Input Kader PHBS', href: '/dashboard/kader' })
   }
 
-  if (isSuperAdmin) {
+  if (isSuperAdmin || user?.role === 'admin_puskesmas') {
     menuItems.push({ icon: '👥', label: 'Manajemen User', href: '/dashboard/users' })
   }
 
