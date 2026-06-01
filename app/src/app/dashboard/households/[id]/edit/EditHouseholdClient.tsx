@@ -104,10 +104,12 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
     }
   }
 
-  const field = (name: keyof typeof form) => ({
+  const field = (name: keyof typeof form, uppercase?: boolean) => ({
     value: form[name],
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setForm(prev => ({ ...prev, [name]: e.target.value })),
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      const val = uppercase ? e.target.value.toUpperCase() : e.target.value
+      setForm(prev => ({ ...prev, [name]: val }))
+    },
     className: `w-full border rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all ${
       fieldErrors[name] ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'
     }`,
@@ -183,7 +185,7 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Nama Kepala Keluarga <span className="text-red-500">*</span></label>
-              <input type="text" {...field('nama_kk')} />
+              <input type="text" {...field('nama_kk', true)} />
               {fieldErrors.nama_kk && <p className="text-red-500 text-xs mt-1">{fieldErrors.nama_kk}</p>}
             </div>
             {isSuperAdmin && (
@@ -223,7 +225,7 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Alamat <span className="text-red-500">*</span></label>
-              <textarea rows={2} {...field('alamat')} className={`w-full border rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none ${fieldErrors.alamat ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+              <textarea rows={2} {...field('alamat', true)} className={`w-full border rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none ${fieldErrors.alamat ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
               {fieldErrors.alamat && <p className="text-red-500 text-xs mt-1">{fieldErrors.alamat}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">

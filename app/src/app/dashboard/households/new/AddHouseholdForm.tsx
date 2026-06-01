@@ -190,10 +190,12 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
     setStep('done')
   }
 
-  const field = (name: keyof typeof form) => ({
+  const field = (name: keyof typeof form, uppercase?: boolean) => ({
     value: form[name],
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setForm(prev => ({ ...prev, [name]: e.target.value })),
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      const val = uppercase ? e.target.value.toUpperCase() : e.target.value
+      setForm(prev => ({ ...prev, [name]: val }))
+    },
     className: `w-full border rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all ${
       fieldErrors[name] ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'
     }`,
@@ -327,7 +329,7 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Nama Kepala Keluarga <span className="text-red-500">*</span>
                 </label>
-                <input type="text" placeholder="Nama lengkap sesuai KK" {...field('nama_kk')} />
+                <input type="text" placeholder="Nama lengkap sesuai KK" {...field('nama_kk', true)} />
                 {fieldErrors.nama_kk && (
                   <p className="text-red-500 text-xs mt-1">{fieldErrors.nama_kk}</p>
                 )}
@@ -379,7 +381,7 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
                   rows={2}
                   placeholder="Jalan, nomor, gang, dll"
                   value={form.alamat}
-                  onChange={e => setForm(p => ({ ...p, alamat: e.target.value }))}
+                  onChange={e => setForm(p => ({ ...p, alamat: e.target.value.toUpperCase() }))}
                   className={`w-full border rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none ${
                     fieldErrors.alamat ? 'border-red-400 bg-red-50' : 'border-gray-200'
                   }`}

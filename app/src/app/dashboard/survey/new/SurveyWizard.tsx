@@ -783,7 +783,7 @@ export default function SurveyWizard({
             <form onSubmit={handleAddArtSubmit} className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Nama Lengkap *</label>
-                <input required type="text" value={newArt.nama} onChange={e => setNewArt({...newArt, nama: e.target.value})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-emerald-400 bg-white" />
+                <input required type="text" value={newArt.nama} onChange={e => setNewArt({...newArt, nama: e.target.value.toUpperCase()})} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-emerald-400 bg-white" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">NIK (Opsional)</label>

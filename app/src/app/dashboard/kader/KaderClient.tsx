@@ -119,7 +119,7 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
             <select 
               value={filterPuskesmas}
               onChange={e => { setFilterPuskesmas(e.target.value); setFilterDesa('all') }}
-              className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white min-w-[200px]"
+              className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white text-gray-900 font-medium min-w-[200px]"
             >
               <option value="all">Semua Puskesmas</option>
               {refPuskesmas.map(p => <option key={p.id} value={p.id}>{p.nama}</option>)}
@@ -128,7 +128,7 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
           <select 
             value={filterDesa}
             onChange={e => setFilterDesa(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white min-w-[200px]"
+            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white text-gray-900 font-medium min-w-[200px]"
           >
             <option value="all">Semua Desa/Kelurahan</option>
             {filterAvailableDesa.map(d => <option key={d.id} value={d.id}>{d.desa_kel}</option>)}
@@ -138,7 +138,7 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
             placeholder="Cari nama kader..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white w-full sm:w-64 text-gray-900 placeholder:text-gray-400"
+            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white w-full sm:w-64 text-gray-900 font-medium placeholder-gray-500"
           />
         </div>
         <button 
@@ -205,7 +205,7 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
                       required
                       placeholder="Masukkan nama lengkap kader..."
                       value={name}
-                      onChange={e => handleNameChange(i, e.target.value)}
+                      onChange={e => handleNameChange(i, e.target.value.toUpperCase())}
                       className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 ring-emerald-500"
                     />
                     {kaderNames.length > 1 && (
