@@ -108,10 +108,16 @@ export default function SurveyWizard({
     async function loadKader() {
       if (typeof window !== 'undefined' && navigator.onLine) {
         try {
-          const { data } = await supabase
+          const query = supabase
             .from('kader_phbs')
             .select('id, puskesmas_id, desa_id, nama_kader, created_at')
             .limit(10000)
+
+          if (!isSuperAdmin && appUser?.puskesmas_id) {
+            query.eq('puskesmas_id', appUser.puskesmas_id)
+          }
+
+          const { data } = await query
           
           if (data && data.length > 0) {
             await offlineDB.kader_phbs.clear()

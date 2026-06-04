@@ -47,10 +47,25 @@ export async function syncReferenceData(): Promise<void> {
   if (!(await isOnline())) return
 
   try {
-    const { data: kaderData, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: appUser } = await supabase
+      .from('app_users')
+      .select('puskesmas_id, role')
+      .eq('id', user.id)
+      .single()
+
+    let query = supabase
       .from('kader_phbs')
       .select('id, puskesmas_id, desa_id, nama_kader, created_at')
       .limit(10000)
+    
+    if (appUser && appUser.role !== 'superadmin' && appUser.puskesmas_id) {
+      query = query.eq('puskesmas_id', appUser.puskesmas_id)
+    }
+
+    const { data: kaderData, error } = await query
     
     if (error) throw error
     if (kaderData) {
