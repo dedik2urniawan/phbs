@@ -50,6 +50,7 @@ export async function syncReferenceData(): Promise<void> {
     const { data: kaderData, error } = await supabase
       .from('kader_phbs')
       .select('id, puskesmas_id, desa_id, nama_kader, created_at')
+      .limit(10000)
     
     if (error) throw error
     if (kaderData) {

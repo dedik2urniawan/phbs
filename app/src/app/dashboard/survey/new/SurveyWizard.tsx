@@ -111,6 +111,7 @@ export default function SurveyWizard({
           const { data } = await supabase
             .from('kader_phbs')
             .select('id, puskesmas_id, desa_id, nama_kader, created_at')
+            .limit(10000)
           
           if (data && data.length > 0) {
             await offlineDB.kader_phbs.clear()
