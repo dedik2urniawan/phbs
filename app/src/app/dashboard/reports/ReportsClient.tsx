@@ -222,11 +222,11 @@ export default function ReportsClient({ appUser, surveysData = [], puskesmasList
       germas_data,
       correlation_matrix,
       rentan_data: {
-        bumilTarget: 90, bumilCapaian: bumilTotal ? Math.round((bumilYes/bumilTotal)*100) : 0,
-        remajaTarget: 90, remajaCapaian: remajaTotal ? Math.round((remajaYes/remajaTotal)*100) : 0,
+        bumilTarget: 90, bumilCapaian: bumilTotal ? Number(((bumilYes/bumilTotal)*100).toFixed(2)) : 0,
+        remajaTarget: 90, remajaCapaian: remajaTotal ? Number(((remajaYes/remajaTotal)*100).toFixed(2)) : 0,
       },
       total_surveys,
-      iks_phbs: Math.round((total_sehat/total_surveys)*100),
+      iks_phbs: total_surveys > 0 ? Number(((total_sehat/total_surveys)*100).toFixed(2)) : 0,
       total_sehat,
       total_tidak_sehat: total_surveys - total_sehat,
     }
@@ -234,7 +234,7 @@ export default function ReportsClient({ appUser, surveysData = [], puskesmasList
 
   const totalKK = computedAnalytics?.total_surveys || 0
   const iks = computedAnalytics?.iks_phbs || 0
-  const cakupanPersen = totalSasaranKK > 0 ? Math.round((totalKK / totalSasaranKK) * 100) : 100
+  const cakupanPersen = totalSasaranKK > 0 ? Number(((totalKK / totalSasaranKK) * 100).toFixed(2)) : 100
 
   // Fallbacks
   const dataRadar = computedAnalytics?.radar_data || []
@@ -397,7 +397,7 @@ export default function ReportsClient({ appUser, surveysData = [], puskesmasList
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Cakupan Survei</p>
-              <p className="text-3xl font-extrabold text-emerald-600 mt-1">{cakupanPersen}%</p>
+              <p className="text-3xl font-extrabold text-emerald-600 mt-1">{typeof cakupanPersen === 'number' ? cakupanPersen.toFixed(2) : cakupanPersen}%</p>
             </div>
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusBadgeColor}`}>
               {statusCakupan}
@@ -419,7 +419,7 @@ export default function ReportsClient({ appUser, surveysData = [], puskesmasList
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">IKS Wilayah</p>
-              <p className="text-3xl font-extrabold text-emerald-600 mt-1">{iks}%</p>
+              <p className="text-3xl font-extrabold text-emerald-600 mt-1">{typeof iks === 'number' ? iks.toFixed(2) : iks}%</p>
             </div>
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${iksBadgeColor}`}>
               {iksCategory}
