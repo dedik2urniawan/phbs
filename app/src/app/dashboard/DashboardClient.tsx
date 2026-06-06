@@ -320,8 +320,8 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   // Use sasaran if available, else use households count
   const totalKkFiltered = hasSasaran ? totalSasaranKK : totalKkHouseholds
   
-  const persentaseCapaian = kkDisurvei > 0 ? Math.round((capaianPhbsCount / kkDisurvei) * 100) : 0
-  const persentaseDisurvei = totalKkFiltered > 0 ? Math.round((kkDisurvei / totalKkFiltered) * 100) : 0
+  const persentaseCapaian = kkDisurvei > 0 ? ((capaianPhbsCount / kkDisurvei) * 100).toFixed(2) : "0.00"
+  const persentaseDisurvei = totalKkFiltered > 0 ? ((kkDisurvei / totalKkFiltered) * 100).toFixed(2) : "0.00"
 
   // Metadata chart data — Progress Survey or Capaian PHBS by desa/puskesmas
   const getMetadataChartData = (type: 'progress' | 'capaian') => {
@@ -333,11 +333,11 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
         const sasaranForP = sasaranData.filter(s => s.puskesmas_id === p.id && s.tahun === filterYear)
         const totalSas = sasaranForP.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
         if (type === 'progress') {
-          const pct = totalSas > 0 ? Math.round((surveysForP.length / totalSas) * 100) : 0
+          const pct = totalSas > 0 ? Number(((surveysForP.length / totalSas) * 100).toFixed(2)) : 0
           return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Sasaran: totalSas }
         } else {
           const sehat = surveysForP.filter(s => s.is_rt_sehat).length
-          const pct = surveysForP.length > 0 ? Math.round((sehat / surveysForP.length) * 100) : 0
+          const pct = surveysForP.length > 0 ? Number(((sehat / surveysForP.length) * 100).toFixed(2)) : 0
           return { name: p.nama, Persentase: pct, Sehat: sehat, Total: surveysForP.length }
         }
       }).sort((a, b) => b.Persentase - a.Persentase)
@@ -350,11 +350,11 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
         const sasaranForD = sasaranData.filter(s => s.desa_id === d.id && s.tahun === filterYear)
         const totalSas = sasaranForD.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
         if (type === 'progress') {
-          const pct = totalSas > 0 ? Math.round((surveysForD.length / totalSas) * 100) : 0
+          const pct = totalSas > 0 ? Number(((surveysForD.length / totalSas) * 100).toFixed(2)) : 0
           return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Sasaran: totalSas }
         } else {
           const sehat = surveysForD.filter(s => s.is_rt_sehat).length
-          const pct = surveysForD.length > 0 ? Math.round((sehat / surveysForD.length) * 100) : 0
+          const pct = surveysForD.length > 0 ? Number(((sehat / surveysForD.length) * 100).toFixed(2)) : 0
           return { name: d.desa_kel, Persentase: pct, Sehat: sehat, Total: surveysForD.length }
         }
       }).sort((a, b) => b.Persentase - a.Persentase)
