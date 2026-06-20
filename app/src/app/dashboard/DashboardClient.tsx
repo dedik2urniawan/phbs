@@ -52,6 +52,9 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   const [activeMetadataChart, setActiveMetadataChart] = useState<'progress' | 'progress_sistem' | 'capaian'>('progress')
   const [activeDemographicBreakdown, setActiveDemographicBreakdown] = useState<'gender' | 'education' | 'occupation'>('gender')
   
+  const [searchKader, setSearchKader] = useState('')
+  const [limitKader, setLimitKader] = useState<'5' | '10' | '20' | 'ALL'>('10')
+  
   const [activePhbsInd, setActivePhbsInd] = useState(PHBS_INDICATORS[0].key)
   const [activeNonPhbsInd, setActiveNonPhbsInd] = useState(NON_PHBS_INDICATORS[0].key)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
@@ -1126,38 +1129,110 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
       {activeTab === 'kader' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <Award className="text-yellow-500" />
-              Peringkat Progress Survey Kader
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {(() => {
-                const kaderMap: Record<string, { nama: string, count: number }> = {}
-                filteredSurveys.forEach(s => {
-                  const id = s.kader_phbs_id || 'unknown'
-                  const nama = s.kader_phbs?.nama_kader || 'Kader Dihapus / Tidak Diketahui'
-                  if (!kaderMap[id]) kaderMap[id] = { nama, count: 0 }
-                  kaderMap[id].count++
-                })
-                const sortedKader = Object.values(kaderMap).sort((a, b) => b.count - a.count)
-
-                if (sortedKader.length === 0) {
-                  return <div className="col-span-full text-center text-gray-400 py-8">Belum ada data survei untuk filter ini.</div>
-                }
-
-                return sortedKader.map((k, i) => (
-                  <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-emerald-50 hover:border-emerald-200 transition-colors">
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center font-black text-lg bg-white shadow-sm border border-gray-200 text-gray-500">
-                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-800 line-clamp-1" title={k.nama}>{k.nama}</p>
-                      <p className="text-sm text-gray-500 font-medium">{k.count} Keluarga Disurvei</p>
-                    </div>
-                  </div>
-                ))
-              })()}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Award className="text-yellow-500" />
+                Peringkat Progress Survey Kader
+              </h3>
+              <div className="flex gap-3">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Cari Kader..."
+                    value={searchKader}
+                    onChange={e => setSearchKader(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  />
+                </div>
+                <select
+                  value={limitKader}
+                  onChange={e => setLimitKader(e.target.value as any)}
+                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white min-w-24 text-gray-700 font-medium"
+                >
+                  <option value="5">Top 5</option>
+                  <option value="10">Top 10</option>
+                  <option value="20">Top 20</option>
+                  <option value="ALL">Semua</option>
+                </select>
+              </div>
             </div>
+            
+            {(() => {
+              const kaderMap: Record<string, { nama: string, count: number }> = {}
+              filteredSurveys.forEach(s => {
+                const id = s.kader_phbs_id || 'unknown'
+                const nama = s.kader_phbs?.nama_kader || 'Kader Dihapus / Tidak Diketahui'
+                if (!kaderMap[id]) kaderMap[id] = { nama, count: 0 }
+                kaderMap[id].count++
+              })
+              
+              let sortedKader = Object.values(kaderMap).sort((a, b) => b.count - a.count)
+              
+              if (searchKader.trim()) {
+                sortedKader = sortedKader.filter(k => k.nama.toLowerCase().includes(searchKader.toLowerCase()))
+              }
+              
+              if (limitKader !== 'ALL') {
+                sortedKader = sortedKader.slice(0, parseInt(limitKader))
+              }
+
+              if (sortedKader.length === 0) {
+                return <div className="text-center text-gray-400 py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">Belum ada data survei untuk filter ini.</div>
+              }
+
+              const chartHeight = Math.max(300, sortedKader.length * 40)
+
+              return (
+                <>
+                  <div style={{ height: chartHeight, width: '100%' }} className="mb-8">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={sortedKader} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
+                        <XAxis type="number" hide />
+                        <YAxis type="category" dataKey="nama" width={160} axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12 }} />
+                        <RechartsTooltip 
+                          cursor={{ fill: '#f3f4f6' }}
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload
+                              return (
+                                <div className="bg-white text-sm rounded-xl p-3 shadow-lg border border-gray-100">
+                                  <p className="font-bold text-gray-800">{data.nama}</p>
+                                  <p className="text-emerald-600 font-semibold">{data.count} Keluarga Disurvei</p>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
+                        <Bar dataKey="count" fill="#10b981" radius={[0, 6, 6, 0]} barSize={24} animationDuration={1000}>
+                          {sortedKader.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={index === 0 ? '#f59e0b' : index === 1 ? '#94a3b8' : index === 2 ? '#d97706' : '#10b981'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {sortedKader.map((k, i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-emerald-50 hover:border-emerald-200 transition-colors">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center font-black text-lg bg-white shadow-sm border border-gray-200 text-gray-500">
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold text-gray-800 line-clamp-1" title={k.nama}>{k.nama}</p>
+                          <p className="text-sm text-gray-500 font-medium">{k.count} Keluarga Disurvei</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}
