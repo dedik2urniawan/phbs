@@ -1163,7 +1163,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
             {(() => {
               const kaderMap: Record<string, { nama: string, count: number }> = {}
               filteredSurveys.forEach(s => {
-                const id = s.kader_phbs_id || 'unknown'
+                const id = s.surveyor_id || 'unknown'
                 const nama = s.kader_phbs?.nama_kader || 'Kader Dihapus / Tidak Diketahui'
                 if (!kaderMap[id]) kaderMap[id] = { nama, count: 0 }
                 kaderMap[id].count++
