@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   }
   const allHouseholds = await fetchAll(statsQuery)
 
-  let surveyQuery = supabase.from('surveys').select('*, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama))')
+  let surveyQuery = supabase.from('surveys').select('*, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama)), kader_phbs(nama_kader)')
 
   if (appUser?.role === 'admin_puskesmas') {
     surveyQuery = surveyQuery.eq('households.puskesmas_id', appUser.puskesmas_id)

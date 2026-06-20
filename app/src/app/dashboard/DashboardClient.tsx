@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react'
 import { AppUser } from '@/lib/types'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
-import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby } from 'lucide-react'
+import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby, Award } from 'lucide-react'
 import WelcomeReminderModal from '@/components/WelcomeReminderModal'
 
 interface Props {
@@ -45,11 +45,11 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   const currentYear = new Date().getFullYear()
   
   // States
-  const [activeTab, setActiveTab] = useState<'metadata' | 'respondents' | 'phbs' | 'non-phbs'>('metadata')
+  const [activeTab, setActiveTab] = useState<'metadata' | 'respondents' | 'phbs' | 'non-phbs' | 'kader'>('metadata')
   const [filterYear, setFilterYear] = useState<number>(currentYear)
   const [filterPuskesmas, setFilterPuskesmas] = useState<string>('ALL')
   const [filterDesa, setFilterDesa] = useState<string>('ALL')
-  const [activeMetadataChart, setActiveMetadataChart] = useState<'progress' | 'capaian'>('progress')
+  const [activeMetadataChart, setActiveMetadataChart] = useState<'progress' | 'progress_sistem' | 'capaian'>('progress')
   const [activeDemographicBreakdown, setActiveDemographicBreakdown] = useState<'gender' | 'education' | 'occupation'>('gender')
   
   const [activePhbsInd, setActivePhbsInd] = useState(PHBS_INDICATORS[0].key)
@@ -322,19 +322,24 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   
   const persentaseCapaian = kkDisurvei > 0 ? ((capaianPhbsCount / kkDisurvei) * 100).toFixed(2) : "0.00"
   const persentaseDisurvei = totalKkFiltered > 0 ? ((kkDisurvei / totalKkFiltered) * 100).toFixed(2) : "0.00"
+  const persentaseDisurveiSistem = totalKkHouseholds > 0 ? ((kkDisurvei / totalKkHouseholds) * 100).toFixed(2) : "0.00"
 
   // Metadata chart data — Progress Survey or Capaian PHBS by desa/puskesmas
-  const getMetadataChartData = (type: 'progress' | 'capaian') => {
+  const getMetadataChartData = (type: 'progress' | 'progress_sistem' | 'capaian') => {
     const groupByPuskesmas = isSuperAdmin && filterPuskesmas === 'ALL'
     
     if (groupByPuskesmas) {
       return refPuskesmas.filter(p => !p.nama.toLowerCase().includes('dinkes')).map(p => {
         const surveysForP = filteredSurveys.filter(s => s.households?.puskesmas_id === p.id)
-        const sasaranForP = sasaranData.filter(s => s.puskesmas_id === p.id && s.tahun === filterYear)
-        const totalSas = sasaranForP.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
         if (type === 'progress') {
+          const sasaranForP = sasaranData.filter(s => s.puskesmas_id === p.id && s.tahun === filterYear)
+          const totalSas = sasaranForP.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
           const pct = totalSas > 0 ? Number(((surveysForP.length / totalSas) * 100).toFixed(2)) : 0
           return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Sasaran: totalSas }
+        } else if (type === 'progress_sistem') {
+          const totalKkP = allHouseholds.filter(h => h.puskesmas_id === p.id).length
+          const pct = totalKkP > 0 ? Number(((surveysForP.length / totalKkP) * 100).toFixed(2)) : 0
+          return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Total_KK: totalKkP }
         } else {
           const sehat = surveysForP.filter(s => s.is_rt_sehat).length
           const pct = surveysForP.length > 0 ? Number(((sehat / surveysForP.length) * 100).toFixed(2)) : 0
@@ -347,11 +352,15 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
         : refDesa.filter(d => !isSuperAdmin ? d.puskesmas_id === user?.puskesmas_id : true)
       return validDesa.map(d => {
         const surveysForD = filteredSurveys.filter(s => s.households?.desa_id === d.id)
-        const sasaranForD = sasaranData.filter(s => s.desa_id === d.id && s.tahun === filterYear)
-        const totalSas = sasaranForD.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
         if (type === 'progress') {
+          const sasaranForD = sasaranData.filter(s => s.desa_id === d.id && s.tahun === filterYear)
+          const totalSas = sasaranForD.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
           const pct = totalSas > 0 ? Number(((surveysForD.length / totalSas) * 100).toFixed(2)) : 0
           return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Sasaran: totalSas }
+        } else if (type === 'progress_sistem') {
+          const totalKkD = allHouseholds.filter(h => h.desa_id === d.id).length
+          const pct = totalKkD > 0 ? Number(((surveysForD.length / totalKkD) * 100).toFixed(2)) : 0
+          return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Total_KK: totalKkD }
         } else {
           const sehat = surveysForD.filter(s => s.is_rt_sehat).length
           const pct = surveysForD.length > 0 ? Number(((sehat / surveysForD.length) * 100).toFixed(2)) : 0
@@ -598,6 +607,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
           { id: 'respondents', label: 'Statistics Responden', icon: Users },
           { id: 'phbs', label: 'Capaian Indikator PHBS', icon: Target },
           { id: 'non-phbs', label: 'Capaian Indikator Non PHBS', icon: Activity },
+          { id: 'kader', label: 'Progress Survey Kader', icon: Award },
         ].map(tab => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -622,7 +632,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
       {activeTab === 'metadata' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Score Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
             {/* Total KK Sasaran */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-bl-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
@@ -643,9 +653,11 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
               </div>
             </div>
             {[
+              { label: 'Total KK Terdaftar', value: totalKkHouseholds.toLocaleString('id'), icon: '📂', color: 'from-slate-500 to-gray-600', sub: 'Total KK di sistem' },
               { label: `KK Disurvei ${filterYear}`, value: kkDisurvei.toLocaleString('id'), icon: '📋', color: 'from-blue-500 to-indigo-600', sub: kkDisurvei === 0 ? 'Belum ada data' : 'Keluarga' },
-              { label: 'Target Survei', value: hasSasaran ? `${persentaseDisurvei}%` : '–', icon: '🎯', color: 'from-amber-500 to-orange-600', sub: hasSasaran ? 'Dari total sasaran KK' : 'Sasaran belum diinput' },
-              { label: 'Capaian PHBS', value: `${persentaseCapaian}%`, icon: '📈', color: 'from-purple-500 to-pink-600', sub: 'Rumah Sehat' },
+              { label: 'Progres Sistem', value: `${persentaseDisurveiSistem}%`, icon: '📈', color: 'from-emerald-500 to-green-600', sub: 'Disurvei / Total KK' },
+              { label: 'Target Survei', value: hasSasaran ? `${persentaseDisurvei}%` : '–', icon: '🎯', color: 'from-amber-500 to-orange-600', sub: hasSasaran ? 'Disurvei / Sasaran' : 'Sasaran belum diinput' },
+              { label: 'Capaian PHBS', value: `${persentaseCapaian}%`, icon: '🌟', color: 'from-purple-500 to-pink-600', sub: 'Rumah Sehat' },
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative group">
                 <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${stat.color} rounded-bl-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity`}></div>
@@ -695,6 +707,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
               <div className="flex gap-2">
                 {[
                   { id: 'progress', label: '📊 Progress Survey', color: '#3b82f6' },
+                  { id: 'progress_sistem', label: '📈 Progress Sistem', color: '#8b5cf6' },
                   { id: 'capaian', label: '🏆 Capaian PHBS', color: '#10b981' },
                 ].map(tab => (
                   <button
@@ -716,20 +729,22 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-sm font-semibold text-gray-700">
-                    {activeMetadataChart === 'progress' ? 'Progress Survey: KK Disurvei / Total Sasaran KK' : 'Capaian PHBS: % Rumah Tangga Sehat'}
+                    {activeMetadataChart === 'progress' && 'Progress Survey: KK Disurvei / Total Sasaran KK'}
+                    {activeMetadataChart === 'progress_sistem' && 'Progress Sistem: KK Disurvei / Total KK Terdaftar'}
+                    {activeMetadataChart === 'capaian' && 'Capaian PHBS: % Rumah Tangga Sehat'}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">Distribusi per {isSuperAdmin && filterPuskesmas === 'ALL' ? 'Puskesmas' : 'Desa'}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-3xl font-black" style={{ color: activeMetadataChart === 'progress' ? '#3b82f6' : '#10b981' }}>
-                    {activeMetadataChart === 'progress' ? `${persentaseDisurvei}%` : `${persentaseCapaian}%`}
+                  <p className="text-3xl font-black" style={{ color: activeMetadataChart === 'progress' ? '#3b82f6' : activeMetadataChart === 'progress_sistem' ? '#8b5cf6' : '#10b981' }}>
+                    {activeMetadataChart === 'progress' ? `${persentaseDisurvei}%` : activeMetadataChart === 'progress_sistem' ? `${persentaseDisurveiSistem}%` : `${persentaseCapaian}%`}
                   </p>
                   <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Rata-rata Keseluruhan</p>
                 </div>
               </div>
               {(() => {
                 const chartData = getMetadataChartData(activeMetadataChart)
-                const chartColor = activeMetadataChart === 'progress' ? '#3b82f6' : '#10b981'
+                const chartColor = activeMetadataChart === 'progress' ? '#3b82f6' : activeMetadataChart === 'progress_sistem' ? '#8b5cf6' : '#10b981'
                 return chartData.length > 0 ? (
                   <div className="h-[360px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -747,6 +762,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
                                   <p className="font-bold mb-2 border-b border-gray-100 pb-1">{label}</p>
                                   <p className="flex justify-between gap-4"><span>Capaian:</span> <span className="font-bold" style={{ color: chartColor }}>{d.Persentase}%</span></p>
                                   {activeMetadataChart === 'progress' && <p className="flex justify-between gap-4 text-xs text-gray-500 mt-1"><span>Disurvei / Sasaran:</span> <span>{d.Disurvei} / {d.Sasaran || 'N/A'}</span></p>}
+                                  {activeMetadataChart === 'progress_sistem' && <p className="flex justify-between gap-4 text-xs text-gray-500 mt-1"><span>Disurvei / Total KK:</span> <span>{d.Disurvei} / {d.Total_KK}</span></p>}
                                   {activeMetadataChart === 'capaian' && <p className="flex justify-between gap-4 text-xs text-gray-500 mt-1"><span>Sehat / Total:</span> <span>{d.Sehat} / {d.Total}</span></p>}
                                 </div>
                               )
@@ -1094,8 +1110,55 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
 
       {activeTab === 'non-phbs' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {renderIndicatorScoreCards(NON_PHBS_INDICATORS)}
-          {renderChartSection(NON_PHBS_INDICATORS, activeNonPhbsInd, setActiveNonPhbsInd, "Grafik Capaian Indikator Non PHBS:")}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                <Activity size={20} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800">Indikator Non PHBS Tatanan Rumah Tangga</h3>
+            </div>
+            {renderIndicatorScoreCards(NON_PHBS_INDICATORS)}
+            {renderChartSection(NON_PHBS_INDICATORS, activeNonPhbsInd, setActiveNonPhbsInd, 'Capaian Indikator Non PHBS:')}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'kader' && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <Award className="text-yellow-500" />
+              Peringkat Progress Survey Kader
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {(() => {
+                const kaderMap: Record<string, { nama: string, count: number }> = {}
+                filteredSurveys.forEach(s => {
+                  const id = s.kader_phbs_id || 'unknown'
+                  const nama = s.kader_phbs?.nama_kader || 'Kader Dihapus / Tidak Diketahui'
+                  if (!kaderMap[id]) kaderMap[id] = { nama, count: 0 }
+                  kaderMap[id].count++
+                })
+                const sortedKader = Object.values(kaderMap).sort((a, b) => b.count - a.count)
+
+                if (sortedKader.length === 0) {
+                  return <div className="col-span-full text-center text-gray-400 py-8">Belum ada data survei untuk filter ini.</div>
+                }
+
+                return sortedKader.map((k, i) => (
+                  <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-emerald-50 hover:border-emerald-200 transition-colors">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center font-black text-lg bg-white shadow-sm border border-gray-200 text-gray-500">
+                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-800 line-clamp-1" title={k.nama}>{k.nama}</p>
+                      <p className="text-sm text-gray-500 font-medium">{k.count} Keluarga Disurvei</p>
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
         </div>
       )}
 

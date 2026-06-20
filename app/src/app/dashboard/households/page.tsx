@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetchUtils'
 import { redirect } from 'next/navigation'
 import HouseholdsClient from './HouseholdsClient'
 
@@ -40,15 +41,15 @@ export default async function HouseholdsPage() {
   // Ambil households sesuai role
   let householdsQuery = supabase
     .from('households')
-    .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))', { count: 'exact' })
+    .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))')
     .order('created_at', { ascending: false })
-    .limit(1000)
 
   if (!isSuperAdmin) {
     householdsQuery = householdsQuery.eq('puskesmas_id', appUser?.puskesmas_id)
   }
 
-  const { data: households, count } = await householdsQuery
+  const households = await fetchAll(householdsQuery) as any[]
+  const count = households.length
 
   return (
     <HouseholdsClient

@@ -35,6 +35,7 @@ export default function HouseholdsClient({
   const supabase = createClient()
   const [search, setSearch]             = useState('')
   const [filterDesa, setFilterDesa]     = useState('')
+  const [filterStatusSurvei, setFilterStatusSurvei] = useState<'ALL' | 'SURVEYED' | 'UNSURVEYED'>('ALL')
   const [selectedPkm, setSelectedPkm]   = useState('')
   const [desaList, setDesaList]         = useState<Desa[]>(initialDesaList)
   const [households, setHouseholds]     = useState<Household[]>(initialHouseholds)
@@ -138,7 +139,10 @@ export default function HouseholdsClient({
       h.no_kk.includes(search)
     )
     const matchDesa = !filterDesa || h.ref_desa?.desa_kel === filterDesa
-    return matchSearch && matchDesa
+    const hasSurvey = h.surveys && h.surveys.length > 0
+    const matchStatus = filterStatusSurvei === 'ALL' ? true :
+                        filterStatusSurvei === 'SURVEYED' ? hasSurvey : !hasSurvey
+    return matchSearch && matchDesa && matchStatus
   })
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
@@ -242,6 +246,20 @@ export default function HouseholdsClient({
               ))}
             </select>
           )}
+
+          {/* Status Survei filter */}
+          <select
+            value={filterStatusSurvei}
+            onChange={e => {
+              setFilterStatusSurvei(e.target.value as any)
+              setCurrentPage(1)
+            }}
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white min-w-40 text-gray-900 font-medium"
+          >
+            <option value="ALL">Semua Status Survei</option>
+            <option value="SURVEYED">✅ Sudah Disurvei</option>
+            <option value="UNSURVEYED">❌ Belum Disurvei</option>
+          </select>
         </div>
 
         {/* Content */}

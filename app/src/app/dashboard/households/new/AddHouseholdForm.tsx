@@ -111,7 +111,11 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
         .where('no_kk').equals(record.no_kk)
         .first()
       if (existing) {
-        setError(`No KK ${record.no_kk} sudah terdaftar di lokal`)
+        if (existing.sync_status === 'synced') {
+          setError(`No KK ${record.no_kk} sudah Anda daftarkan. Silakan cari di menu "Data Rumah Tangga" untuk melanjutkan.`)
+        } else {
+          setError(`No KK ${record.no_kk} sudah tersimpan sebagai draft lokal di perangkat ini. Silakan cari di menu "Data Rumah Tangga" untuk melanjutkannya saat online.`)
+        }
         setSubmitting(false)
         return
       }
