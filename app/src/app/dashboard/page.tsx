@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetchUtils'
 import { redirect } from 'next/navigation'
 import DashboardClient from './DashboardClient'
 
@@ -19,7 +20,7 @@ export default async function DashboardPage() {
   if (appUser?.role === 'admin_puskesmas') {
     statsQuery = statsQuery.eq('puskesmas_id', appUser.puskesmas_id)
   }
-  const { data: allHouseholds } = await statsQuery
+  const allHouseholds = await fetchAll(statsQuery)
 
   let surveyQuery = supabase.from('surveys').select('*, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama))')
 
@@ -27,7 +28,7 @@ export default async function DashboardPage() {
     surveyQuery = surveyQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
   }
 
-  const { data: surveysData } = await surveyQuery
+  const surveysData = await fetchAll(surveyQuery)
 
   const { data: refPuskesmas } = await supabase.from('ref_puskesmas').select('*').order('nama')
   const { data: refDesa } = await supabase.from('ref_desa').select('*').order('desa_kel')
@@ -37,14 +38,14 @@ export default async function DashboardPage() {
   if (appUser?.role === 'admin_puskesmas') {
     sasaranQuery = sasaranQuery.eq('puskesmas_id', appUser.puskesmas_id)
   }
-  const { data: sasaranData } = await sasaranQuery
+  const sasaranData = await fetchAll(sasaranQuery)
 
   // Fetch family members for Statistics Responden
   let membersQuery = supabase.from('family_members').select('id, jenis_kelamin, pendidikan, pekerjaan, household_id, households!inner(puskesmas_id, desa_id)')
   if (appUser?.role === 'admin_puskesmas') {
     membersQuery = membersQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
   }
-  const { data: familyMembersData } = await membersQuery
+  const familyMembersData = await fetchAll(membersQuery)
 
   return (
     <DashboardClient 

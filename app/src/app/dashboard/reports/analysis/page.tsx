@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetchUtils'
 import { redirect } from 'next/navigation'
 import ReportsClient from '../ReportsClient'
 
@@ -25,7 +26,7 @@ export default async function AnalisisLaporanPage({ searchParams }: { searchPara
     surveyQuery = surveyQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
   }
 
-  const { data: surveysData } = await surveyQuery
+  const surveysData = await fetchAll(surveyQuery)
   
   // Fetch reference data for filters
   const { data: puskesmasList } = await supabase.from('ref_puskesmas').select('id, nama').order('nama')
@@ -36,7 +37,7 @@ export default async function AnalisisLaporanPage({ searchParams }: { searchPara
   if (appUser?.role !== 'superadmin' && appUser?.puskesmas_id) {
     sasaranQuery = sasaranQuery.eq('puskesmas_id', appUser.puskesmas_id)
   }
-  const { data: sasaranData } = await sasaranQuery
+  const sasaranData = await fetchAll(sasaranQuery)
 
   // Generate available years dynamically (from 2025 to currentYear + 1)
   const availableYears = Array.from({ length: Math.max(2, currentYear - 2025 + 2) }, (_, i) => 2025 + i)
