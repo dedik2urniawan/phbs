@@ -60,7 +60,7 @@ export interface Survey {
   ind_17_pemberantasan_serangga: boolean | null
   total_indikator: number | null
   kategori: 'Sehat Pratama' | 'Sehat Madya' | 'Sehat Utama' | 'Sehat Paripurna' | null
-  surveyor_id: string
+  kader_id: string
   created_at: string
   updated_at: string
 }
