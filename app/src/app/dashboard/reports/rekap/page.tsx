@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import { fetchAll } from '@/lib/supabase/fetchUtils'
 import { redirect } from 'next/navigation'
 import RekapClient from './RekapClient'
+import { getCachedRekapSurveys, getCachedSasaranByTahun, getCachedRefData } from '@/lib/data/dashboard'
 
 export default async function RekapLaporanPage({ searchParams }: { searchParams: Promise<{ tahun?: string }> }) {
   const params = await searchParams
@@ -16,29 +16,21 @@ export default async function RekapLaporanPage({ searchParams }: { searchParams:
     .eq('id', user.id)
     .single()
 
+  const isSuperAdmin = appUser?.role === 'superadmin'
+  const puskesmasIdFilter = isSuperAdmin ? null : appUser?.puskesmas_id
   const currentYear = new Date().getFullYear()
   const selectedTahun = params?.tahun ? parseInt(params.tahun) : currentYear
 
-  // Fetch surveys, joined with households (no_kk included) and survey_art_responses (with family_members)
-  let surveyQuery = supabase.from('surveys').select('*, households!inner(no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(id, desa_kel)), survey_art_responses(*, family_members(nama, nik, hubungan_kk))')
-    .eq('tahun', selectedTahun)
-
-  if (appUser?.role !== 'superadmin' && appUser?.puskesmas_id) {
-    surveyQuery = surveyQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
-  }
-
-  const surveysData = await fetchAll(surveyQuery)
-
-  // Fetch reference data for filters
-  const { data: puskesmasList } = await supabase.from('ref_puskesmas').select('id, nama').order('nama')
-  const { data: desaList } = await supabase.from('ref_desa').select('id, puskesmas_id, desa_kel').order('desa_kel')
-
-  // Fetch sasaran_kk for calculation of TARGET / TOTAL
-  let sasaranQuery = supabase.from('sasaran_kk').select('*').eq('tahun', selectedTahun)
-  if (appUser?.role !== 'superadmin' && appUser?.puskesmas_id) {
-    sasaranQuery = sasaranQuery.eq('puskesmas_id', appUser.puskesmas_id)
-  }
-  const sasaranData = await fetchAll(sasaranQuery)
+  // Fetch all data using cached functions concurrently
+  const [
+    surveysData,
+    sasaranData,
+    { refPuskesmas: puskesmasList, refDesa: desaList }
+  ] = await Promise.all([
+    getCachedRekapSurveys(selectedTahun, puskesmasIdFilter),
+    getCachedSasaranByTahun(selectedTahun, puskesmasIdFilter),
+    getCachedRefData()
+  ])
 
   // Generate available years (e.g., from 2025 to currentYear + 1)
   const availableYears = Array.from({ length: Math.max(2, currentYear - 2025 + 2) }, (_, i) => 2025 + i)

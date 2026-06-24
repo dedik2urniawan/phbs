@@ -41,15 +41,14 @@ export default async function HouseholdsPage() {
   // Ambil households sesuai role
   let householdsQuery = supabase
     .from('households')
-    .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))')
+    .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))', { count: 'exact' })
     .order('created_at', { ascending: false })
 
   if (!isSuperAdmin) {
     householdsQuery = householdsQuery.eq('puskesmas_id', appUser?.puskesmas_id)
   }
 
-  const households = await fetchAll(householdsQuery) as any[]
-  const count = households.length
+  const { data: households, count } = await householdsQuery.limit(50)
 
   return (
     <HouseholdsClient

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import { fetchAll } from '@/lib/supabase/fetchUtils'
 import { redirect } from 'next/navigation'
 import DashboardClient from './DashboardClient'
+import { getCachedFamilyMembers, getCachedHouseholds, getCachedRefData, getCachedSasaran, getCachedSurveys } from '@/lib/data/dashboard'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -15,37 +15,23 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single()
 
-  // Statistik dasar
-  let statsQuery = supabase.from('households').select('id, puskesmas_id, desa_id')
-  if (appUser?.role === 'admin_puskesmas') {
-    statsQuery = statsQuery.eq('puskesmas_id', appUser.puskesmas_id)
-  }
-  const allHouseholds = await fetchAll(statsQuery)
+  const isSuperAdmin = appUser?.role === 'superadmin'
+  const puskesmasIdFilter = isSuperAdmin ? null : appUser?.puskesmas_id
 
-  let surveyQuery = supabase.from('surveys').select('*, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama)), kader_phbs(nama_kader)')
-
-  if (appUser?.role === 'admin_puskesmas') {
-    surveyQuery = surveyQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
-  }
-
-  const surveysData = await fetchAll(surveyQuery)
-
-  const { data: refPuskesmas } = await supabase.from('ref_puskesmas').select('*').order('nama')
-  const { data: refDesa } = await supabase.from('ref_desa').select('*').order('desa_kel')
-
-  // Sasaran KK
-  let sasaranQuery = supabase.from('sasaran_kk').select('*')
-  if (appUser?.role === 'admin_puskesmas') {
-    sasaranQuery = sasaranQuery.eq('puskesmas_id', appUser.puskesmas_id)
-  }
-  const sasaranData = await fetchAll(sasaranQuery)
-
-  // Fetch family members for Statistics Responden
-  let membersQuery = supabase.from('family_members').select('id, jenis_kelamin, pendidikan, pekerjaan, household_id, households!inner(puskesmas_id, desa_id)')
-  if (appUser?.role === 'admin_puskesmas') {
-    membersQuery = membersQuery.eq('households.puskesmas_id', appUser.puskesmas_id)
-  }
-  const familyMembersData = await fetchAll(membersQuery)
+  // Fetch all data using cached functions concurrently
+  const [
+    allHouseholds,
+    surveysData,
+    sasaranData,
+    familyMembersData,
+    { refPuskesmas, refDesa }
+  ] = await Promise.all([
+    getCachedHouseholds(puskesmasIdFilter),
+    getCachedSurveys(puskesmasIdFilter),
+    getCachedSasaran(puskesmasIdFilter),
+    getCachedFamilyMembers(puskesmasIdFilter),
+    getCachedRefData()
+  ])
 
   return (
     <DashboardClient 
