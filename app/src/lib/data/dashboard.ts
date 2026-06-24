@@ -76,7 +76,6 @@ export const getCachedHouseholdCounts = unstable_cache(
       byDesa
     }
   },
-  },
   ['dashboard-hh-counts-v4'],
   { revalidate: 28800 } // Sinkronisasi setiap 8 jam (28800 detik)
 )
