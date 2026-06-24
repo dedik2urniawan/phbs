@@ -76,8 +76,9 @@ export const getCachedHouseholdCounts = unstable_cache(
       byDesa
     }
   },
-  ['dashboard-hh-counts-v3'],
-  { revalidate: 300 }
+  },
+  ['dashboard-hh-counts-v4'],
+  { revalidate: 28800 } // Sinkronisasi setiap 8 jam (28800 detik)
 )
 
 // ==========================================
@@ -100,8 +101,8 @@ export const getCachedSurveys = unstable_cache(
     
     return await fetchCapped(query, 5000)
   },
-  ['dashboard-surveys-v3'],
-  { revalidate: 300 }
+  ['dashboard-surveys-v4'],
+  { revalidate: 28800 } // Sinkronisasi setiap 8 jam (28800 detik)
 )
 
 // ==========================================
@@ -116,8 +117,8 @@ export const getCachedSasaran = unstable_cache(
     }
     return await fetchCapped(query, 500)
   },
-  ['dashboard-sasaran-v3'],
-  { revalidate: 300 }
+  ['dashboard-sasaran-v4'],
+  { revalidate: 28800 } // Target sasaran tahunan, cache 24 jam
 )
 
 // ==========================================
@@ -135,8 +136,8 @@ export const getCachedRefData = unstable_cache(
       refDesa: desaRes.data || []
     }
   },
-  ['dashboard-ref-data-v3'],
-  { revalidate: 3600 }
+  ['dashboard-ref-v4'],
+  { revalidate: 28800 } // Referensi data tidak sering berubah, cache 24 jam
 )
 
 // ==========================================
