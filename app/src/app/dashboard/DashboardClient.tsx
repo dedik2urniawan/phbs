@@ -5,10 +5,11 @@ import { AppUser } from '@/lib/types'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby, Award } from 'lucide-react'
 import WelcomeReminderModal from '@/components/WelcomeReminderModal'
+import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
-  allHouseholds: any[]
+  householdCounts: { total: number; byPuskesmas: Record<string, number>; byDesa: Record<string, number> }
   surveysData: any[]
   refPuskesmas: any[]
   refDesa: any[]
@@ -38,7 +39,7 @@ const NON_PHBS_INDICATORS = [
   { key: 'i17_remaja_putri_ttd', label: 'Remaja Putri TTD', icon: CheckCircle, color: '#10b981' },
 ]
 
-export default function DashboardClient({ user, allHouseholds, surveysData, refPuskesmas, refDesa, sasaranData = [], familyMembersData = [] }: Props) {
+export default function DashboardClient({ user, householdCounts, surveysData, refPuskesmas, refDesa, sasaranData = [], familyMembersData: initialFamilyMembersData = [] }: Props) {
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
   
@@ -55,6 +56,9 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   const [searchKader, setSearchKader] = useState('')
   const [limitKader, setLimitKader] = useState<'5' | '10' | '20' | 'ALL'>('10')
   
+  const [clientFamilyMembers, setClientFamilyMembers] = useState<any[]>(initialFamilyMembersData)
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false)
+  
   const [activePhbsInd, setActivePhbsInd] = useState(PHBS_INDICATORS[0].key)
   const [activeNonPhbsInd, setActiveNonPhbsInd] = useState(NON_PHBS_INDICATORS[0].key)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
@@ -68,6 +72,36 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
       sessionStorage.setItem('simphbs_welcome_seen', 'true')
     }
   }, [])
+
+  // Lazy load family members data when respondents tab is active
+  React.useEffect(() => {
+    if (activeTab === 'respondents' && clientFamilyMembers.length === 0 && !isLoadingMembers) {
+      const fetchMembers = async () => {
+        setIsLoadingMembers(true)
+        try {
+          const supabase = createClient()
+          let query = supabase.from('family_members').select('id, jenis_kelamin, pendidikan, pekerjaan, household_id, households!inner(puskesmas_id, desa_id)')
+          
+          if (!isSuperAdmin && user?.puskesmas_id) {
+            query = query.eq('households.puskesmas_id', user.puskesmas_id)
+          } else if (isSuperAdmin && filterPuskesmas !== 'ALL') {
+            query = query.eq('households.puskesmas_id', filterPuskesmas)
+          }
+
+          // Fetch capped to prevent large memory spikes on client
+          const { data, error } = await query.limit(5000)
+          if (!error && data) {
+            setClientFamilyMembers(data)
+          }
+        } catch (err) {
+          console.error("Error fetching members", err)
+        } finally {
+          setIsLoadingMembers(false)
+        }
+      }
+      fetchMembers()
+    }
+  }, [activeTab, isSuperAdmin, user?.puskesmas_id, filterPuskesmas, clientFamilyMembers.length, isLoadingMembers])
 
   // Derived options
   const years = Array.from(new Set(surveysData.map(s => s.tahun).filter(Boolean))).sort().reverse()
@@ -101,8 +135,8 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
   // Filtered Family Members based on surveyed households
   const filteredMembers = useMemo(() => {
     const activeHouseholdIds = new Set(filteredSurveys.map(s => s.household_id))
-    return (familyMembersData || []).filter(m => activeHouseholdIds.has(m.household_id))
-  }, [familyMembersData, filteredSurveys])
+    return (clientFamilyMembers || []).filter(m => activeHouseholdIds.has(m.household_id))
+  }, [clientFamilyMembers, filteredSurveys])
 
   // Gender Demographic Stats
   const genderStats = useMemo(() => {
@@ -306,19 +340,20 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
 
   // Fallback total KK (from households) — only used in persentase if no sasaran
   const totalKkHouseholds = useMemo(() => {
-    return allHouseholds.filter(h => {
-      let match = true
-      if (isSuperAdmin && filterPuskesmas !== 'ALL') {
-        if (h.puskesmas_id !== filterPuskesmas) match = false
-      } else if (!isSuperAdmin) {
-        if (h.puskesmas_id !== user?.puskesmas_id) match = false
-      }
-      if (filterDesa !== 'ALL') {
-        if (h.desa_id !== filterDesa) match = false
-      }
-      return match
-    }).length
-  }, [allHouseholds, filterPuskesmas, filterDesa, isSuperAdmin, user?.puskesmas_id])
+    if (isSuperAdmin && filterPuskesmas === 'ALL' && filterDesa === 'ALL') {
+      return householdCounts?.total || 0;
+    }
+    if (filterDesa !== 'ALL') {
+      return householdCounts?.byDesa?.[filterDesa] || 0;
+    }
+    if (filterPuskesmas !== 'ALL') {
+      return householdCounts?.byPuskesmas?.[filterPuskesmas] || 0;
+    }
+    if (!isSuperAdmin && user?.puskesmas_id) {
+      return householdCounts?.byPuskesmas?.[user?.puskesmas_id] || 0;
+    }
+    return householdCounts?.total || 0;
+  }, [householdCounts, filterPuskesmas, filterDesa, isSuperAdmin, user?.puskesmas_id])
 
   // Use sasaran if available, else use households count
   const totalKkFiltered = hasSasaran ? totalSasaranKK : totalKkHouseholds
@@ -340,7 +375,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
           const pct = totalSas > 0 ? Number(((surveysForP.length / totalSas) * 100).toFixed(2)) : 0
           return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Sasaran: totalSas }
         } else if (type === 'progress_sistem') {
-          const totalKkP = allHouseholds.filter(h => h.puskesmas_id === p.id).length
+          const totalKkP = householdCounts?.byPuskesmas?.[p.id] || 0
           const pct = totalKkP > 0 ? Number(((surveysForP.length / totalKkP) * 100).toFixed(2)) : 0
           return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Total_KK: totalKkP }
         } else {
@@ -361,7 +396,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
           const pct = totalSas > 0 ? Number(((surveysForD.length / totalSas) * 100).toFixed(2)) : 0
           return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Sasaran: totalSas }
         } else if (type === 'progress_sistem') {
-          const totalKkD = allHouseholds.filter(h => h.desa_id === d.id).length
+          const totalKkD = householdCounts?.byDesa?.[d.id] || 0
           const pct = totalKkD > 0 ? Number(((surveysForD.length / totalKkD) * 100).toFixed(2)) : 0
           return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Total_KK: totalKkD }
         } else {
@@ -790,6 +825,13 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
 
       {activeTab === 'respondents' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+          {isLoadingMembers && (
+            <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-sm font-medium text-gray-500">Memuat data responden...</p>
+            </div>
+          )}
+          {!isLoadingMembers && (<>
           {/* Top Metric Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden group">
@@ -1101,6 +1143,7 @@ export default function DashboardClient({ user, allHouseholds, surveysData, refP
             </div>
           </div>
 
+          </>)}
         </div>
       )}
 
