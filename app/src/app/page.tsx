@@ -63,6 +63,23 @@ export default function LandingPage() {
         </div>
       </nav>
 
+      {/* ===== MAINTENANCE NOTIFICATION ===== */}
+      <div className="fixed top-20 left-0 right-0 z-40 px-4">
+        <div className="max-w-4xl mx-auto bg-amber-500 text-white rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-top-4 duration-500">
+          <div className="px-6 py-4 flex items-start sm:items-center gap-4">
+            <div className="bg-amber-600/50 p-2 rounded-lg shrink-0">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg mb-1">Pemberitahuan: Sistem Sedang Dalam Perbaikan / Optimalisasi</h3>
+              <p className="text-amber-50 text-sm">
+                Mohon maaf, saat ini sistem sedang mengalami beban akses yang tinggi dan kami sedang melakukan perbaikan performa database (peningkatan spesifikasi server). Akses login dan dashboard mungkin akan terasa lambat atau tidak bisa diakses sementara waktu. Kami akan segera memberitahukan jika proses perbaikan telah selesai. Terima kasih atas pengertiannya.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ===== HERO ===== */}
       <section className="relative min-h-screen flex items-center bg-gradient-to-br from-emerald-900 via-teal-800 to-green-900 overflow-hidden pt-16">
         {/* BG blobs */}
