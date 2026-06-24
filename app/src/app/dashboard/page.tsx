@@ -18,30 +18,42 @@ export default async function DashboardPage() {
   const isSuperAdmin = appUser?.role === 'superadmin'
   const puskesmasIdFilter = isSuperAdmin ? null : appUser?.puskesmas_id
 
-  // Fetch all data using cached functions concurrently
-  const [
-    allHouseholds,
-    surveysData,
-    sasaranData,
-    familyMembersData,
-    { refPuskesmas, refDesa }
-  ] = await Promise.all([
-    getCachedHouseholds(puskesmasIdFilter),
-    getCachedSurveys(puskesmasIdFilter),
-    getCachedSasaran(puskesmasIdFilter),
-    getCachedFamilyMembers(puskesmasIdFilter),
-    getCachedRefData()
-  ])
+  // Fetch data with graceful error handling — never crash the page
+  let allHouseholds: any[] = []
+  let surveysData: any[] = []
+  let sasaranData: any[] = []
+  let familyMembersData: any[] = []
+  let refPuskesmas: any[] = []
+  let refDesa: any[] = []
+
+  try {
+    const [households, surveys, sasaran, members, refData] = await Promise.all([
+      getCachedHouseholds(puskesmasIdFilter).catch(() => []),
+      getCachedSurveys(puskesmasIdFilter).catch(() => []),
+      getCachedSasaran(puskesmasIdFilter).catch(() => []),
+      getCachedFamilyMembers(puskesmasIdFilter).catch(() => []),
+      getCachedRefData().catch(() => ({ refPuskesmas: [], refDesa: [] }))
+    ])
+    allHouseholds = households || []
+    surveysData = surveys || []
+    sasaranData = sasaran || []
+    familyMembersData = members || []
+    refPuskesmas = refData.refPuskesmas || []
+    refDesa = refData.refDesa || []
+  } catch (err) {
+    console.error('[DashboardPage] Failed to fetch data:', err)
+  }
 
   return (
     <DashboardClient 
       user={appUser} 
-      allHouseholds={allHouseholds || []}
-      surveysData={surveysData || []}
-      refPuskesmas={refPuskesmas || []}
-      refDesa={refDesa || []}
-      sasaranData={sasaranData || []}
-      familyMembersData={familyMembersData || []}
+      allHouseholds={allHouseholds}
+      surveysData={surveysData}
+      refPuskesmas={refPuskesmas}
+      refDesa={refDesa}
+      sasaranData={sasaranData}
+      familyMembersData={familyMembersData}
     />
   )
 }
+

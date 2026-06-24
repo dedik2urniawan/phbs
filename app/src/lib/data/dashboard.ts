@@ -1,21 +1,43 @@
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache } from 'next/cache'
-import { fetchAll } from '../supabase/fetchUtils'
 
 // Gunakan Service Role Key untuk bypass RLS di dalam cache server-side
-// Karena unstable_cache tidak bisa mengakses cookies() dari user yang sedang login
 const getServiceSupabase = () => {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        persistSession: false
-      }
-    }
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('Missing SUPABASE env vars for service role')
+  }
+  return createClient(url, key, {
+    auth: { persistSession: false }
+  })
 }
 
+// Helper: fetch with pagination but capped at maxRows to prevent OOM
+async function fetchCapped<T>(query: any, maxRows: number = 5000): Promise<T[]> {
+  let allData: T[] = []
+  let from = 0
+  const limit = 1000
+
+  while (allData.length < maxRows) {
+    const { data, error } = await query.range(from, from + limit - 1)
+    if (error) {
+      console.error("Error in fetchCapped:", error.message)
+      return allData // Return what we have instead of crashing
+    }
+    if (data && data.length > 0) {
+      allData = allData.concat(data)
+      from += limit
+    }
+    if (!data || data.length < limit) break
+  }
+
+  return allData.slice(0, maxRows)
+}
+
+// ==========================================
+// DASHBOARD - Households (hanya id, puskesmas_id, desa_id)
+// ==========================================
 export const getCachedHouseholds = unstable_cache(
   async (puskesmasId?: string | null) => {
     const supabase = getServiceSupabase()
@@ -25,12 +47,16 @@ export const getCachedHouseholds = unstable_cache(
       query = query.eq('puskesmas_id', puskesmasId)
     }
     
-    return await fetchAll(query)
+    // Households hanya 3 kolom ringan, aman sampai 10k
+    return await fetchCapped(query, 10000)
   },
-  ['dashboard-households'],
-  { revalidate: 300 } // Cache 5 menit
+  ['dashboard-households-v2'],
+  { revalidate: 300 }
 )
 
+// ==========================================
+// DASHBOARD - Surveys (+ join households & kader)
+// ==========================================
 export const getCachedSurveys = unstable_cache(
   async (puskesmasId?: string | null) => {
     const supabase = getServiceSupabase()
@@ -40,12 +66,16 @@ export const getCachedSurveys = unstable_cache(
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchAll(query)
+    // Surveys bisa banyak kolom, cap at 5000
+    return await fetchCapped(query, 5000)
   },
-  ['dashboard-surveys'],
+  ['dashboard-surveys-v2'],
   { revalidate: 300 }
 )
 
+// ==========================================
+// DASHBOARD - Sasaran KK
+// ==========================================
 export const getCachedSasaran = unstable_cache(
   async (puskesmasId?: string | null) => {
     const supabase = getServiceSupabase()
@@ -55,12 +85,16 @@ export const getCachedSasaran = unstable_cache(
       query = query.eq('puskesmas_id', puskesmasId)
     }
     
-    return await fetchAll(query)
+    // Sasaran KK biasanya kecil (<500 baris)
+    return await fetchCapped(query, 2000)
   },
-  ['dashboard-sasaran'],
+  ['dashboard-sasaran-v2'],
   { revalidate: 300 }
 )
 
+// ==========================================
+// DASHBOARD - Family Members (hanya kolom yang dibutuhkan)
+// ==========================================
 export const getCachedFamilyMembers = unstable_cache(
   async (puskesmasId?: string | null) => {
     const supabase = getServiceSupabase()
@@ -70,12 +104,16 @@ export const getCachedFamilyMembers = unstable_cache(
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchAll(query)
+    // Family members paling berat — cap ketat 5000 baris
+    return await fetchCapped(query, 5000)
   },
-  ['dashboard-family-members'],
+  ['dashboard-family-members-v2'],
   { revalidate: 300 }
 )
 
+// ==========================================
+// REF DATA - Puskesmas & Desa (sangat ringan)
+// ==========================================
 export const getCachedRefData = unstable_cache(
   async () => {
     const supabase = getServiceSupabase()
@@ -88,10 +126,13 @@ export const getCachedRefData = unstable_cache(
       refDesa: desaRes.data || []
     }
   },
-  ['dashboard-ref-data'],
-  { revalidate: 3600 } // Cache 1 jam untuk data referensi
+  ['dashboard-ref-data-v2'],
+  { revalidate: 3600 }
 )
 
+// ==========================================
+// REKAP - Surveys with ART responses
+// ==========================================
 export const getCachedRekapSurveys = unstable_cache(
   async (tahun: number, puskesmasId?: string | null) => {
     const supabase = getServiceSupabase()
@@ -102,12 +143,15 @@ export const getCachedRekapSurveys = unstable_cache(
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchAll(query)
+    return await fetchCapped(query, 5000)
   },
-  ['dashboard-rekap-surveys'],
+  ['dashboard-rekap-surveys-v2'],
   { revalidate: 300 }
 )
 
+// ==========================================
+// ANALYSIS - Surveys for analysis
+// ==========================================
 export const getCachedAnalysisSurveys = unstable_cache(
   async (tahun: number, puskesmasId?: string | null) => {
     const supabase = getServiceSupabase()
@@ -118,12 +162,15 @@ export const getCachedAnalysisSurveys = unstable_cache(
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchAll(query)
+    return await fetchCapped(query, 5000)
   },
-  ['dashboard-analysis-surveys'],
+  ['dashboard-analysis-surveys-v2'],
   { revalidate: 300 }
 )
 
+// ==========================================
+// SASARAN by Tahun
+// ==========================================
 export const getCachedSasaranByTahun = unstable_cache(
   async (tahun: number, puskesmasId?: string | null) => {
     const supabase = getServiceSupabase()
@@ -133,8 +180,8 @@ export const getCachedSasaranByTahun = unstable_cache(
       query = query.eq('puskesmas_id', puskesmasId)
     }
     
-    return await fetchAll(query)
+    return await fetchCapped(query, 2000)
   },
-  ['dashboard-sasaran-by-tahun'],
+  ['dashboard-sasaran-by-tahun-v2'],
   { revalidate: 300 }
 )
