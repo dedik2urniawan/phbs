@@ -401,12 +401,18 @@ export default function SurveyWizard({
         if (!sbErr) {
           await offlineDB.surveys.update(id, { sync_status: 'synced' })
           
-          for (const artRecord of artRecordsToSave) {
-            const payload = { ...artRecord, sync_status: undefined }
-            const { error: artErr } = await supabase.from('survey_art_responses').upsert(payload)
-            if (!artErr) {
+          const payloads = artRecordsToSave.map(r => {
+             const { sync_status, ...rest } = r;
+             return rest;
+          })
+          const { error: artErr } = await supabase.from('survey_art_responses').upsert(payloads)
+          
+          if (!artErr) {
+            for (const artRecord of artRecordsToSave) {
                await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
-            } else {
+            }
+          } else {
+            for (const artRecord of artRecordsToSave) {
                await enqueueSync('survey_art_responses', artRecord.id, 'insert', artRecord)
             }
           }

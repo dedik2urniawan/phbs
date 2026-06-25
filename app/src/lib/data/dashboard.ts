@@ -1,16 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache } from 'next/cache'
 
+let _serviceClient: ReturnType<typeof createClient> | null = null
+
 // Gunakan Service Role Key untuk bypass RLS di dalam cache server-side
 const getServiceSupabase = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    throw new Error('Missing SUPABASE env vars for service role')
+  if (!_serviceClient) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) {
+      throw new Error('Missing SUPABASE env vars for service role')
+    }
+    _serviceClient = createClient(url, key, {
+      auth: { persistSession: false }
+    })
   }
-  return createClient(url, key, {
-    auth: { persistSession: false }
-  })
+  return _serviceClient
 }
 
 // Helper: fetch with pagination, capped at maxRows, with error resilience
@@ -154,8 +159,8 @@ export const getCachedRekapSurveys = unstable_cache(
     
     return await fetchCapped(query, 3000)
   },
-  ['dashboard-rekap-surveys-v3'],
-  { revalidate: 300 }
+  ['dashboard-rekap-surveys-v4'],
+  { revalidate: 28800 } // Diubah ke 8 jam
 )
 
 // ==========================================
@@ -173,8 +178,8 @@ export const getCachedAnalysisSurveys = unstable_cache(
     
     return await fetchCapped(query, 3000)
   },
-  ['dashboard-analysis-surveys-v3'],
-  { revalidate: 300 }
+  ['dashboard-analysis-surveys-v4'],
+  { revalidate: 28800 } // Diubah ke 8 jam
 )
 
 // ==========================================
@@ -189,6 +194,6 @@ export const getCachedSasaranByTahun = unstable_cache(
     }
     return await fetchCapped(query, 500)
   },
-  ['dashboard-sasaran-by-tahun-v3'],
-  { revalidate: 300 }
+  ['dashboard-sasaran-by-tahun-v4'],
+  { revalidate: 28800 } // Diubah ke 8 jam
 )

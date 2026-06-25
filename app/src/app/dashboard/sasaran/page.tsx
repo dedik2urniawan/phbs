@@ -34,7 +34,8 @@ export default async function SasaranPage() {
     sasaranQuery = sasaranQuery.eq('puskesmas_id', appUser.puskesmas_id)
   }
 
-  const { data: sasaranData } = await sasaranQuery
+  // Prevent crashing by fetching too many rows without pagination
+  const { data: sasaranData } = await sasaranQuery.limit(500)
 
   return (
     <div className="p-8 pb-20">

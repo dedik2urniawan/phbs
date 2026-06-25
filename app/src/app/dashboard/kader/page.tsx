@@ -43,7 +43,8 @@ export default async function KaderPage() {
     kaderQuery = kaderQuery.eq('puskesmas_id', appUser.puskesmas_id)
   }
 
-  const { data: kaderData } = await kaderQuery
+  // Prevent crashing by fetching too many rows without pagination
+  const { data: kaderData } = await kaderQuery.limit(500)
 
   return (
     <div className="p-8 pb-20">

@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react'
 import { AppUser } from '@/lib/types'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
-import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby, Award } from 'lucide-react'
+import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby, Award, Server, Zap } from 'lucide-react'
 import WelcomeReminderModal from '@/components/WelcomeReminderModal'
 import { createClient } from '@/lib/supabase/client'
 
@@ -632,6 +632,25 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Selamat Datang 👋</h2>
           <p className="text-gray-500 mt-1">{puskesmasName} — Sistem Informasi Manajemen PHBS</p>
+        </div>
+      </div>
+
+      {/* Sync Status Banner */}
+      <div className="mb-6 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-4 flex items-start gap-4 shadow-sm">
+        <div className="bg-emerald-100 p-2 rounded-lg shrink-0 mt-0.5">
+          <Server className="w-5 h-5 text-emerald-600" />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-emerald-800">Sistem Berjalan Optimal</h3>
+            <span className="bg-emerald-200 text-emerald-800 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Zap className="w-3 h-3" /> Super Cepat
+            </span>
+          </div>
+          <p className="text-sm text-emerald-700 mt-1 leading-relaxed">
+            Demi menjaga performa server tetap stabil untuk 390 desa, <strong>sinkronisasi data ke dashboard dilakukan secara otomatis setiap 8 jam</strong>. 
+            Data yang baru saja diinput oleh Kader mungkin tidak akan langsung muncul di grafik, namun sudah tersimpan aman di database utama.
+          </p>
         </div>
       </div>
 
