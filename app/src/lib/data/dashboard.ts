@@ -1,6 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache } from 'next/cache'
 
+// Custom In-Memory Cache untuk melewati batasan 2MB dari Next.js unstable_cache
+const memoryCache: Record<string, { data: any, timestamp: number }> = {}
+
+async function withMemoryCache<T>(key: string, ttlSeconds: number, fetcher: () => Promise<T>): Promise<T> {
+  const now = Date.now()
+  if (memoryCache[key] && (now - memoryCache[key].timestamp < ttlSeconds * 1000)) {
+    return memoryCache[key].data as T
+  }
+  
+  const data = await fetcher()
+  memoryCache[key] = { data, timestamp: now }
+  return data
+}
+
 let _serviceClient: ReturnType<typeof createClient> | null = null
 
 // Gunakan Service Role Key untuk bypass RLS di dalam cache server-side
@@ -88,8 +102,9 @@ export const getCachedHouseholdCounts = unstable_cache(
 // ==========================================
 // DASHBOARD - Surveys (only necessary columns, capped)
 // ==========================================
-export const getCachedSurveys = unstable_cache(
-  async (puskesmasId?: string | null) => {
+export const getCachedSurveys = async (puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-surveys-v5-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     // Select ONLY the columns DashboardClient actually needs
     // Scorecards: household_id, tahun, skor_phbs, denominator_phbs, i1..i10, i11..i17
@@ -104,10 +119,8 @@ export const getCachedSurveys = unstable_cache(
     }
     
     return await fetchCapped(query, 5000)
-  },
-  ['dashboard-surveys-v4'],
-  { revalidate: 28800 } // Sinkronisasi setiap 8 jam (28800 detik)
-)
+  })
+}
 
 // ==========================================
 // DASHBOARD - Sasaran KK (always small)
@@ -147,8 +160,9 @@ export const getCachedRefData = unstable_cache(
 // ==========================================
 // REKAP - Surveys with ART responses
 // ==========================================
-export const getCachedRekapSurveys = unstable_cache(
-  async (tahun: number, puskesmasId?: string | null) => {
+export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-rekap-v5-${tahun}-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     let query = supabase.from('surveys').select('*, households!inner(no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(id, desa_kel)), survey_art_responses(*, family_members(nama, nik, hubungan_kk))')
       .eq('tahun', tahun)
@@ -158,16 +172,15 @@ export const getCachedRekapSurveys = unstable_cache(
     }
     
     return await fetchCapped(query, 3000)
-  },
-  ['dashboard-rekap-surveys-v4'],
-  { revalidate: 28800 } // Diubah ke 8 jam
-)
+  })
+}
 
 // ==========================================
 // ANALYSIS - Surveys for analysis page
 // ==========================================
-export const getCachedAnalysisSurveys = unstable_cache(
-  async (tahun: number, puskesmasId?: string | null) => {
+export const getCachedAnalysisSurveys = async (tahun: number, puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-analysis-v5-${tahun}-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     let query = supabase.from('surveys').select('*, households!inner(nama_kk, puskesmas_id, desa_id, ref_desa(desa_kel), ref_puskesmas(nama))')
       .eq('tahun', tahun)
@@ -177,10 +190,8 @@ export const getCachedAnalysisSurveys = unstable_cache(
     }
     
     return await fetchCapped(query, 3000)
-  },
-  ['dashboard-analysis-surveys-v4'],
-  { revalidate: 28800 } // Diubah ke 8 jam
-)
+  })
+}
 
 // ==========================================
 // SASARAN by Tahun (for rekap/analysis pages)
