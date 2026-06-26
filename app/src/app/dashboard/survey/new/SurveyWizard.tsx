@@ -237,7 +237,11 @@ export default function SurveyWizard({
       
       // Save online if possible
       if (navigator.onLine) {
-        const { error: err } = await supabase.from('family_members').insert({ ...record, sync_status: undefined })
+        const hasNik = !!record.nik
+        const { error: err } = await supabase.from('family_members').upsert(
+          { ...record, sync_status: undefined },
+          hasNik ? { onConflict: 'nik' } : undefined
+        )
         if (!err) await offlineDB.family_members.update(artId, { sync_status: 'synced' })
         else await enqueueSync('family_members', artId, 'insert', record)
       } else {
@@ -394,9 +398,10 @@ export default function SurveyWizard({
 
       // 2. Coba simpan ke server jika online
       if (navigator.onLine) {
-        const { error: sbErr } = await supabase.from('surveys').insert({
-          ...record, sync_status: undefined,
-        })
+        const { error: sbErr } = await supabase.from('surveys').upsert(
+          { ...record, sync_status: undefined },
+          { onConflict: 'household_id, tahun' }
+        )
         
         if (!sbErr) {
           await offlineDB.surveys.update(id, { sync_status: 'synced' })
@@ -405,7 +410,10 @@ export default function SurveyWizard({
              const { sync_status, ...rest } = r;
              return rest;
           })
-          const { error: artErr } = await supabase.from('survey_art_responses').upsert(payloads)
+          const { error: artErr } = await supabase.from('survey_art_responses').upsert(
+            payloads, 
+            { onConflict: 'survey_id, family_member_id' }
+          )
           
           if (!artErr) {
             for (const artRecord of artRecordsToSave) {

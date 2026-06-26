@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import SyncStatusBar from '@/components/SyncStatusBar'
+import SopModal from '@/components/SopModal'
 
 interface Household {
   id: string; no_kk: string; nama_kk: string; created_at: string
@@ -35,6 +36,7 @@ export default function EntryHomeClient({ appUser, recentHouseholds, totalKK, su
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SopModal />
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-700 to-teal-700 px-4 pt-6 pb-10 text-white">
         <div className="flex items-center justify-between mb-4">

@@ -50,6 +50,22 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // ── Next.js RSC (Server Component) requests: Network-First with offline fallback
+  if (url.searchParams.has('_rsc') || request.headers.get('RSC') === '1') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          }
+          return response
+        })
+        .catch(() => caches.match(request))
+    )
+    return
+  }
+
   // Skip cross-origin requests (CDNs, tile servers, etc.)
   if (url.origin !== self.location.origin) return
 

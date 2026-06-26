@@ -82,13 +82,19 @@ async function processQueueItem(item: SyncQueueItem) {
   // Hapus field lokal yang tidak ada di server
   delete payload.sync_status
 
-  if (item.operation === 'insert') {
-    const { error } = await supabase.from(item.table_name).upsert(payload)
-    if (error) throw error
-  } else if (item.operation === 'update') {
-    const { error } = await supabase
-      .from(item.table_name)
-      .upsert(payload)
+  if (item.operation === 'insert' || item.operation === 'update') {
+    let upsertOpts = undefined
+    if (item.table_name === 'households') {
+      upsertOpts = { onConflict: 'no_kk, puskesmas_id' }
+    } else if (item.table_name === 'family_members' && payload.nik) {
+      upsertOpts = { onConflict: 'nik' }
+    } else if (item.table_name === 'surveys') {
+      upsertOpts = { onConflict: 'household_id, tahun' }
+    } else if (item.table_name === 'survey_art_responses') {
+      upsertOpts = { onConflict: 'survey_id, family_member_id' }
+    }
+
+    const { error } = await supabase.from(item.table_name).upsert(payload, upsertOpts)
     if (error) throw error
   } else if (item.operation === 'delete') {
     const { error } = await supabase
