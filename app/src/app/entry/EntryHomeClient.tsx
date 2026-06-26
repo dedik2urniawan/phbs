@@ -73,12 +73,12 @@ export default function EntryHomeClient({ appUser, recentHouseholds, totalKK, su
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Aksi Cepat</p>
           <div className="grid grid-cols-2 gap-3">
-            <Link href="/entry/households/new"
+            <Link href="/entry/households/new" prefetch={true}
               className="flex flex-col items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl p-4 hover:bg-emerald-100 active:scale-95 transition-all">
               <span className="text-3xl">🏠</span>
               <span className="text-sm font-medium text-emerald-800 text-center">Tambah KK Baru</span>
             </Link>
-            <Link href="/entry/survey/new"
+            <Link href="/entry/survey/new" prefetch={true}
               className="flex flex-col items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl p-4 hover:bg-blue-100 active:scale-95 transition-all">
               <span className="text-3xl">📋</span>
               <span className="text-sm font-medium text-blue-800 text-center">Input Survei PHBS</span>
@@ -90,13 +90,13 @@ export default function EntryHomeClient({ appUser, recentHouseholds, totalKK, su
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">KK Terbaru</p>
-            <Link href="/entry/households" className="text-xs text-emerald-600 font-medium">Lihat Semua →</Link>
+            <Link href="/entry/households" prefetch={true} className="text-xs text-emerald-600 font-medium">Lihat Semua →</Link>
           </div>
 
           {recentHouseholds.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-400 text-sm">Belum ada data KK</p>
-              <Link href="/entry/households/new"
+              <Link href="/entry/households/new" prefetch={true}
                 className="mt-3 inline-block bg-emerald-600 text-white text-sm px-4 py-2 rounded-xl font-medium">
                 + Tambah Sekarang
               </Link>
