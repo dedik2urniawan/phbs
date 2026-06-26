@@ -118,7 +118,7 @@ export const getCachedSurveys = async (puskesmasId?: string | null) => {
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchCapped(query, 5000)
+    return await fetchCapped(query, 50000) // Ditingkatkan ke 50.000 (RAM Railway mampu menampung)
   })
 }
 
@@ -171,7 +171,7 @@ export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string 
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchCapped(query, 3000)
+    return await fetchCapped(query, 50000)
   })
 }
 
@@ -189,7 +189,7 @@ export const getCachedAnalysisSurveys = async (tahun: number, puskesmasId?: stri
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchCapped(query, 3000)
+    return await fetchCapped(query, 50000)
   })
 }
 
