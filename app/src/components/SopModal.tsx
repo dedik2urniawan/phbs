@@ -8,15 +8,15 @@ export default function SopModal() {
   const [isAgreed, setIsAgreed] = useState(false)
 
   useEffect(() => {
-    // Cek apakah sudah pernah setuju di localStorage
-    const hasAgreed = localStorage.getItem('phbs_sop_agreed')
+    // Gunakan sessionStorage agar modal muncul setiap kali PWA dibuka baru
+    const hasAgreed = sessionStorage.getItem('phbs_sop_agreed')
     if (!hasAgreed) {
       setIsVisible(true)
     }
   }, [])
 
   const handleAgree = () => {
-    localStorage.setItem('phbs_sop_agreed', 'true')
+    sessionStorage.setItem('phbs_sop_agreed', 'true')
     setIsVisible(false)
   }
 
