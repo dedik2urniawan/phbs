@@ -125,10 +125,13 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
 
       // Coba simpan ke Supabase langsung
       if (navigator.onLine) {
-        const { error: sbError } = await supabase.from('households').insert({
+        if (JSON.stringify(record).includes('"undefined"')) {
+          throw new Error("Data KK tidak valid (terdapat field undefined). Silakan muat ulang halaman.")
+        }
+        const { error: sbError } = await supabase.from('households').upsert({
           ...record,
           sync_status: undefined,
-        })
+        }, { onConflict: 'no_kk,puskesmas_id' })
         if (sbError) {
           // Jika error duplikat no_kk
           if (sbError.code === '23505') {
@@ -138,12 +141,12 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
             return
           }
           // Error lain: masuk queue untuk retry
-          await enqueueSync('households', id, 'insert', record)
+          await enqueueSync('households', id, 'update', record)
         } else {
           await offlineDB.households.update(id, { sync_status: 'synced' })
         }
       } else {
-        await enqueueSync('households', id, 'insert', record)
+        await enqueueSync('households', id, 'update', record)
       }
 
       setHouseholdId(id)
@@ -177,17 +180,18 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
       await offlineDB.family_members.add(record)
 
       if (navigator.onLine) {
-        const { error } = await supabase.from('family_members').insert({
-          ...record,
-          sync_status: undefined,
-        })
+        const hasNik = !!record.nik
+        const { error } = await supabase.from('family_members').upsert(
+          { ...record, sync_status: undefined },
+          hasNik ? { onConflict: 'nik' } : undefined
+        )
         if (!error) {
           await offlineDB.family_members.update(id, { sync_status: 'synced' })
         } else {
-          await enqueueSync('family_members', id, 'insert', record)
+          await enqueueSync('family_members', id, 'update', record)
         }
       } else {
-        await enqueueSync('family_members', id, 'insert', record)
+        await enqueueSync('family_members', id, 'update', record)
       }
     }
 

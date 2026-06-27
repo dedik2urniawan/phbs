@@ -118,11 +118,18 @@ export async function enqueueSync(
   operation: 'insert' | 'update' | 'delete',
   payload: object
 ) {
+  // FIX: Prevent "undefined" UUID errors
+  const payloadStr = JSON.stringify(payload)
+  if (payloadStr.includes('"undefined"')) {
+    console.error(`[SYNC ERROR] Payload contains literal "undefined" string:`, payload)
+    throw new Error(`Data tidak valid (terdapat field undefined). Mohon muat ulang halaman.`)
+  }
+
   await offlineDB.sync_queue.add({
     table_name: tableName,
     record_id: recordId,
     operation,
-    payload: JSON.stringify(payload),
+    payload: payloadStr,
     created_at: new Date().toISOString(),
     retries: 0,
   })

@@ -43,18 +43,27 @@ export default function SurveyHistoryList({ surveys: initialSurveys, basePath }:
     setSurveys(prev => prev.filter(s => s.id !== id))
     
     if (navigator.onLine) {
+      // FIX FK VIOLATION: Hapus child (survey_art_responses) terlebih dahulu
+      await supabase.from('survey_art_responses').delete().eq('survey_id', id);
       const { error } = await supabase.from('surveys').delete().eq('id', id);
+      
       if (error) {
         alert('Gagal menghapus survei di server: ' + error.message)
         // Revert UI? For simplicity, we just reload or let user refresh
         router.refresh()
       } else {
         // Hapus juga di lokal jika ada
-        try { await offlineDB.surveys.delete(id) } catch (e) {}
+        try { 
+          await offlineDB.survey_art_responses.where('survey_id').equals(id).delete()
+          await offlineDB.surveys.delete(id) 
+        } catch (e) {}
       }
     } else {
       // Offline delete: Just delete from local if it's pending. If it was already synced, we can't reliably delete it offline without queuing a delete action. For now, offline delete deletes local.
-      try { await offlineDB.surveys.delete(id) } catch (e) {}
+      try { 
+        await offlineDB.survey_art_responses.where('survey_id').equals(id).delete()
+        await offlineDB.surveys.delete(id) 
+      } catch (e) {}
       alert('Anda sedang offline. Survei dihapus secara lokal. Jika survei sudah tersinkron sebelumnya, akan tetap ada di server sampai dihapus saat online.')
     }
   }
