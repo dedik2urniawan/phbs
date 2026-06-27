@@ -33,6 +33,9 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
       console.error(`Sync error [${item.table_name}/${item.record_id}]:`, (err as any)?.message || JSON.stringify(err) || err)
       await offlineDB.sync_queue.update(item.id!, { retries: item.retries + 1 })
       errors++
+      // Berhenti memproses antrean agar urutan tetap terjaga (Strict Queue Ordering).
+      // Anak tidak akan dikirim jika induknya gagal/menunggu.
+      break
     }
   }
 
@@ -85,13 +88,13 @@ async function processQueueItem(item: SyncQueueItem) {
   if (item.operation === 'insert' || item.operation === 'update') {
     let upsertOpts = undefined
     if (item.table_name === 'households') {
-      upsertOpts = { onConflict: 'no_kk, puskesmas_id' }
+      upsertOpts = { onConflict: 'no_kk,puskesmas_id' }
     } else if (item.table_name === 'family_members' && payload.nik) {
       upsertOpts = { onConflict: 'nik' }
     } else if (item.table_name === 'surveys') {
-      upsertOpts = { onConflict: 'household_id, tahun' }
+      upsertOpts = { onConflict: 'household_id,tahun' }
     } else if (item.table_name === 'survey_art_responses') {
-      upsertOpts = { onConflict: 'survey_id, family_member_id' }
+      upsertOpts = { onConflict: 'survey_id,family_member_id' }
     }
 
     const { error } = await supabase.from(item.table_name).upsert(payload, upsertOpts)
