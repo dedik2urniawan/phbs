@@ -63,19 +63,26 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ===== MAINTENANCE NOTIFICATION ===== */}
+      {/* ===== SOP NOTIFICATION BANNER ===== */}
       <div className="fixed top-20 left-0 right-0 z-40 px-4">
-        <div className="max-w-4xl mx-auto bg-amber-500 text-white rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-top-4 duration-500">
-          <div className="px-6 py-4 flex items-start sm:items-center gap-4">
-            <div className="bg-amber-600/50 p-2 rounded-lg shrink-0">
-              <span className="text-2xl">⚠️</span>
+        <div className="max-w-4xl mx-auto bg-slate-800 text-white rounded-2xl shadow-xl overflow-hidden animate-in slide-in-from-top-4 duration-500 border border-slate-700/50 backdrop-blur-md">
+          <div className="px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="bg-emerald-500/20 text-emerald-400 p-2.5 rounded-xl shrink-0 border border-emerald-500/30">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-bold text-base sm:text-lg mb-0.5 text-white">Panduan & SOP SIM-PHBS Terkini</h3>
+                <p className="text-slate-300 text-xs sm:text-sm">
+                  Seluruh Kader Surveyor dan Admin Puskesmas wajib mematuhi pedoman penggunaan aplikasi demi keakuratan data.
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-lg mb-1">Pemberitahuan: Sistem Sedang Dalam Perbaikan / Optimalisasi</h3>
-              <p className="text-amber-50 text-sm">
-                Mohon maaf, saat ini sistem sedang mengalami beban akses yang tinggi dan kami sedang melakukan perbaikan performa database (peningkatan spesifikasi server). Akses login dan dashboard mungkin akan terasa lambat atau tidak bisa diakses sementara waktu. Kami akan segera memberitahukan jika proses perbaikan telah selesai. Terima kasih atas pengertiannya.
-              </p>
-            </div>
+            <a href="/sop" className="shrink-0 w-full sm:w-auto text-center bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-sm shadow-emerald-900/20">
+              Baca SOP Selengkapnya ➜
+            </a>
           </div>
         </div>
       </div>
