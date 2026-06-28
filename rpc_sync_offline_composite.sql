@@ -8,6 +8,10 @@ DECLARE
     v_kader_id uuid;
     v_member jsonb;
     v_art jsonb;
+    v_household_id_final uuid;
+    v_member_id_final uuid;
+    v_member_map jsonb := '{}'::jsonb;
+    v_mapped_member_id uuid;
     v_result jsonb = '{}'::jsonb;
 BEGIN
     -- Dapatkan ID kader yang login
@@ -16,7 +20,7 @@ BEGIN
         RAISE EXCEPTION 'Not authenticated';
     END IF;
 
-    -- 1. Upsert Household
+    -- 1. Upsert Household + Tangkap ID Final
     IF p_household IS NOT NULL THEN
         INSERT INTO households (
             id, puskesmas_id, desa_id, no_kk, nik_kk, nama_kk, alamat, rt, rw, created_by, created_at, updated_at
@@ -41,20 +45,30 @@ BEGIN
             alamat = EXCLUDED.alamat,
             rt = EXCLUDED.rt,
             rw = EXCLUDED.rw,
-            updated_at = EXCLUDED.updated_at;
+            updated_at = EXCLUDED.updated_at
+        RETURNING id INTO v_household_id_final;
+    ELSE
+        v_household_id_final := NULL;
     END IF;
 
-    -- 2. Upsert Family Members
+    -- Guard: Jika ada member atau survei, household_id HARUS berhasil didapatkan
+    IF (p_members IS NOT NULL AND jsonb_array_length(p_members) > 0) OR (p_survey IS NOT NULL) THEN
+        IF v_household_id_final IS NULL THEN
+            RAISE EXCEPTION 'Household ID could not be resolved before member/survey upsert. Parent missing!';
+        END IF;
+    END IF;
+
+    -- 2. Upsert Family Members + Gunakan ID Parent Final + Tangkap Pemetaan ID Member
     IF p_members IS NOT NULL AND jsonb_array_length(p_members) > 0 THEN
         FOR v_member IN SELECT * FROM jsonb_array_elements(p_members)
         LOOP
             IF (v_member->>'nik') IS NOT NULL AND (v_member->>'nik') != '' THEN
-                -- Upsert dengan NIK jika ada
+                -- Upsert dengan NIK (Bisnis Key)
                 INSERT INTO family_members (
                     id, household_id, nama, nik, jenis_kelamin, tgl_lahir, hubungan_kk, pendidikan, pekerjaan, created_at
                 ) VALUES (
                     (v_member->>'id')::uuid,
-                    (v_member->>'household_id')::uuid,
+                    v_household_id_final, -- Wajib pakai ID Final hasil resolusi, bukan dari payload
                     v_member->>'nama',
                     v_member->>'nik',
                     v_member->>'jenis_kelamin',
@@ -65,19 +79,21 @@ BEGIN
                     (v_member->>'created_at')::timestamp
                 )
                 ON CONFLICT (nik) DO UPDATE SET
+                    household_id = EXCLUDED.household_id, -- Opsional, untuk migrasi ke parent baru jika perlu
                     nama = EXCLUDED.nama,
                     jenis_kelamin = EXCLUDED.jenis_kelamin,
                     tgl_lahir = EXCLUDED.tgl_lahir,
                     hubungan_kk = EXCLUDED.hubungan_kk,
                     pendidikan = EXCLUDED.pendidikan,
-                    pekerjaan = EXCLUDED.pekerjaan;
+                    pekerjaan = EXCLUDED.pekerjaan
+                RETURNING id INTO v_member_id_final;
             ELSE
-                -- Insert biasa jika tidak ada NIK (ID primary key akan handle)
+                -- Insert biasa tanpa NIK (Technical Key)
                 INSERT INTO family_members (
                     id, household_id, nama, nik, jenis_kelamin, tgl_lahir, hubungan_kk, pendidikan, pekerjaan, created_at
                 ) VALUES (
                     (v_member->>'id')::uuid,
-                    (v_member->>'household_id')::uuid,
+                    v_household_id_final, -- Wajib pakai ID Final hasil resolusi
                     v_member->>'nama',
                     v_member->>'nik',
                     v_member->>'jenis_kelamin',
@@ -88,17 +104,22 @@ BEGIN
                     (v_member->>'created_at')::timestamp
                 )
                 ON CONFLICT (id) DO UPDATE SET
+                    household_id = EXCLUDED.household_id,
                     nama = EXCLUDED.nama,
                     jenis_kelamin = EXCLUDED.jenis_kelamin,
                     tgl_lahir = EXCLUDED.tgl_lahir,
                     hubungan_kk = EXCLUDED.hubungan_kk,
                     pendidikan = EXCLUDED.pendidikan,
-                    pekerjaan = EXCLUDED.pekerjaan;
+                    pekerjaan = EXCLUDED.pekerjaan
+                RETURNING id INTO v_member_id_final;
             END IF;
+
+            -- Simpan pemetaan ID dari Payload ke ID Final dari Database (untuk referensi ART Responses)
+            v_member_map := jsonb_set(v_member_map, ARRAY[v_member->>'id'], to_jsonb(v_member_id_final::text));
         END LOOP;
     END IF;
 
-    -- 3. Upsert Survey
+    -- 3. Upsert Survey + Gunakan ID Parent Final
     IF p_survey IS NOT NULL THEN
         INSERT INTO surveys (
             id, household_id, tahun, survey_date, kader_id, 
@@ -109,7 +130,7 @@ BEGIN
             created_at, updated_at
         ) VALUES (
             (p_survey->>'id')::uuid,
-            (p_survey->>'household_id')::uuid,
+            v_household_id_final, -- Wajib pakai ID Final hasil resolusi
             (p_survey->>'tahun')::integer,
             (p_survey->>'survey_date')::date,
             COALESCE((p_survey->>'kader_id')::uuid, v_kader_id),
@@ -166,10 +187,17 @@ BEGIN
             updated_at = EXCLUDED.updated_at;
     END IF;
 
-    -- 4. Upsert Survey ART Responses
+    -- 4. Upsert Survey ART Responses + Gunakan ID Member Final dari Peta Memori
     IF p_art_responses IS NOT NULL AND jsonb_array_length(p_art_responses) > 0 THEN
         FOR v_art IN SELECT * FROM jsonb_array_elements(p_art_responses)
         LOOP
+            -- Coba ambil ID Final dari Peta Memori
+            v_mapped_member_id := (v_member_map->>(v_art->>'family_member_id'))::uuid;
+            IF v_mapped_member_id IS NULL THEN
+                -- Fallback (seharusnya tidak terjadi jika relasi payload sempurna)
+                v_mapped_member_id := (v_art->>'family_member_id')::uuid;
+            END IF;
+
             INSERT INTO survey_art_responses (
                 id, survey_id, family_member_id,
                 i1_persalinan_nakes, i2_asi_eksklusif, i3_menimbang_balita,
@@ -180,7 +208,7 @@ BEGIN
             ) VALUES (
                 (v_art->>'id')::uuid,
                 (v_art->>'survey_id')::uuid,
-                (v_art->>'family_member_id')::uuid,
+                v_mapped_member_id, -- GUNAKAN ID FINAL MEMBER hasil pemetaan
                 (v_art->>'i1_persalinan_nakes')::boolean,
                 (v_art->>'i2_asi_eksklusif')::boolean,
                 (v_art->>'i3_menimbang_balita')::boolean,
@@ -213,7 +241,18 @@ BEGIN
         END LOOP;
     END IF;
 
-    v_result := jsonb_build_object('success', true);
+    -- Selesai, kembalikan status sukses beserta ID rumah tangga final
+    v_result := jsonb_build_object(
+        'success', true, 
+        'household_id', v_household_id_final
+    );
     RETURN v_result;
+
+EXCEPTION
+    -- Fail-fast untuk pelanggaran konstrain (jangan ditelan diam-diam)
+    WHEN foreign_key_violation OR unique_violation THEN
+        RAISE;
+    WHEN OTHERS THEN
+        RAISE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
