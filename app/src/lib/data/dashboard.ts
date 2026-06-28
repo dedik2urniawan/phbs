@@ -208,3 +208,34 @@ export const getCachedSasaranByTahun = unstable_cache(
   ['dashboard-sasaran-by-tahun-v4'],
   { revalidate: 28800 } // Diubah ke 8 jam
 )
+
+// ==========================================
+// DATA RESPONDEN (Server-side Cached)
+// ==========================================
+export const getCachedRespondentStats = async (tahun: number, puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-respondent-data-v1-${tahun}-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 28800, async () => {
+    const supabase = getServiceSupabase()
+    
+    // We join family_members -> households -> surveys to filter by tahun, puskesmas
+    let query = supabase.from('family_members').select('jenis_kelamin, pendidikan, pekerjaan, households!inner(puskesmas_id, desa_id, surveys!inner(tahun))')
+      .eq('households.surveys.tahun', tahun)
+      
+    if (puskesmasId && puskesmasId !== 'ALL') {
+      query = query.eq('households.puskesmas_id', puskesmasId)
+    }
+
+    const data = await fetchCapped(query as any, 100000) as any[]
+    
+    // Format data to match what the client expects (flattening households)
+    return data.map(d => ({
+      jenis_kelamin: d.jenis_kelamin,
+      pendidikan: d.pendidikan,
+      pekerjaan: d.pekerjaan,
+      households: {
+        puskesmas_id: d.households?.puskesmas_id,
+        desa_id: d.households?.desa_id
+      }
+    }))
+  })
+}

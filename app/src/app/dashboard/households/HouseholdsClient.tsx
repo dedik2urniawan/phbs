@@ -99,7 +99,7 @@ export default function HouseholdsClient({
       let query = supabase
         .from('households')
         .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))')
-        .or(`nama_kk.ilike.%${search}%,no_kk.ilike.%${search}%`)
+        .or(`nama_kk.ilike.%${search}%,no_kk.ilike.%${search}%,nik_kk.ilike.%${search}%`)
         .order('created_at', { ascending: false })
         .limit(100)
 

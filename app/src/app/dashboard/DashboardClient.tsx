@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby, Award, Server, Zap } from 'lucide-react'
 import WelcomeReminderModal from '@/components/WelcomeReminderModal'
 import { createClient } from '@/lib/supabase/client'
+import { getRespondentStatsAction } from './actions'
 
 interface Props {
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
@@ -75,24 +76,15 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
 
   // Lazy load family members data when respondents tab is active
   React.useEffect(() => {
-    if (activeTab === 'respondents' && clientFamilyMembers.length === 0 && !isLoadingMembers) {
+    // Re-fetch when filter changes (tahun or puskesmas)
+    const pkmFilter = isSuperAdmin ? (filterPuskesmas === 'ALL' ? null : filterPuskesmas) : (user?.puskesmas_id || null)
+    
+    if (activeTab === 'respondents') {
       const fetchMembers = async () => {
         setIsLoadingMembers(true)
         try {
-          const supabase = createClient()
-          let query = supabase.from('family_members').select('id, jenis_kelamin, pendidikan, pekerjaan, household_id, households!inner(puskesmas_id, desa_id)')
-          
-          if (!isSuperAdmin && user?.puskesmas_id) {
-            query = query.eq('households.puskesmas_id', user.puskesmas_id)
-          } else if (isSuperAdmin && filterPuskesmas !== 'ALL') {
-            query = query.eq('households.puskesmas_id', filterPuskesmas)
-          }
-
-          // Fetch capped to prevent large memory spikes on client
-          const { data, error } = await query.limit(5000)
-          if (!error && data) {
-            setClientFamilyMembers(data)
-          }
+          const data = await getRespondentStatsAction(filterYear, pkmFilter)
+          setClientFamilyMembers(data as any[])
         } catch (err) {
           console.error("Error fetching members", err)
         } finally {
@@ -101,7 +93,7 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
       }
       fetchMembers()
     }
-  }, [activeTab, isSuperAdmin, user?.puskesmas_id, filterPuskesmas, clientFamilyMembers.length, isLoadingMembers])
+  }, [activeTab, filterYear, filterPuskesmas, isSuperAdmin, user?.puskesmas_id])
 
   // Derived options
   const years = Array.from(new Set(surveysData.map(s => s.tahun).filter(Boolean))).sort().reverse()
@@ -134,9 +126,11 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
 
   // Filtered Family Members based on surveyed households
   const filteredMembers = useMemo(() => {
-    const activeHouseholdIds = new Set(filteredSurveys.map(s => s.household_id))
-    return (clientFamilyMembers || []).filter(m => activeHouseholdIds.has(m.household_id))
-  }, [clientFamilyMembers, filteredSurveys])
+    // The server action already filtered by tahun and puskesmas!
+    // We only need to filter by Desa if filterDesa !== 'ALL'
+    if (filterDesa === 'ALL') return clientFamilyMembers || []
+    return (clientFamilyMembers || []).filter(m => m.households?.desa_id === filterDesa)
+  }, [clientFamilyMembers, filterDesa])
 
   // Gender Demographic Stats
   const genderStats = useMemo(() => {

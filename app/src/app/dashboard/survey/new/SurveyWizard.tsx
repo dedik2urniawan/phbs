@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { validateNIK } from '@/lib/validators/nik'
 import Link from 'next/link'
@@ -58,6 +58,8 @@ export default function SurveyWizard({
 
   // Filters for household selection
   const [search, setSearch]             = useState('')
+  const [searchResults, setSearchResults] = useState<Household[] | null>(null)
+  const [isSearching, setIsSearching]   = useState(false)
   const [filterDesa, setFilterDesa]     = useState('')
   const [selectedPkm, setSelectedPkm]   = useState('')
   const [desaList, setDesaList]         = useState<Desa[]>(initialDesaList)
@@ -135,6 +137,50 @@ export default function SurveyWizard({
     loadKader()
   }, [supabase])
   
+  // React useEffect for Debounced Server-Side Search
+  useEffect(() => {
+    if (!search.trim()) {
+      setSearchResults(null)
+      return
+    }
+
+    if (!navigator.onLine) {
+      // Offline fallback: Search local data only
+      setSearchResults(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true)
+      let query = supabase
+        .from('households')
+        .select('id, no_kk, nama_kk, puskesmas_id, desa_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
+        .or(`nama_kk.ilike.%${search}%,no_kk.ilike.%${search}%,nik_kk.ilike.%${search}%`)
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      if (!isSuperAdmin && appUser?.puskesmas_id) {
+        query = query.eq('puskesmas_id', appUser.puskesmas_id)
+      } else if (isSuperAdmin && selectedPkm) {
+        query = query.eq('puskesmas_id', selectedPkm)
+      }
+
+      const { data } = await query
+      if (data) {
+        const formatted = data.map(h => ({
+          ...h,
+          ref_desa: Array.isArray(h.ref_desa) ? (h.ref_desa[0] ?? null) : h.ref_desa,
+          ref_puskesmas: Array.isArray(h.ref_puskesmas) ? (h.ref_puskesmas[0] ?? null) : h.ref_puskesmas,
+        })) as unknown as Household[]
+        setSearchResults(formatted)
+      }
+      setIsSearching(false)
+      setCurrentPage(1)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [search, selectedPkm, isSuperAdmin, appUser?.puskesmas_id, supabase])
+
   const handlePkmChange = useCallback(async (pkmId: string) => {
     setSelectedPkm(pkmId)
     setFilterDesa('')
@@ -178,13 +224,18 @@ export default function SurveyWizard({
     }
   }, [supabase])
 
-  const filtered = households.filter(h => {
-    const matchSearch = !search ||
-      h.nama_kk.toLowerCase().includes(search.toLowerCase()) ||
-      h.no_kk.includes(search)
-    const matchDesa = !filterDesa || h.ref_desa?.desa_kel === filterDesa
-    return matchSearch && matchDesa
-  })
+  const filtered = useMemo(() => {
+    const sourceData = searchResults !== null ? searchResults : households
+    return sourceData.filter(h => {
+      const matchSearch = searchResults !== null ? true : (
+        !search ||
+        h.nama_kk.toLowerCase().includes(search.toLowerCase()) ||
+        h.no_kk.includes(search)
+      )
+      const matchDesa = !filterDesa || h.desa_id === filterDesa
+      return matchSearch && matchDesa
+    })
+  }, [households, searchResults, search, filterDesa])
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
   const paginatedHouseholds = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -552,12 +603,18 @@ export default function SurveyWizard({
             
             <div className="flex flex-wrap gap-3 mb-5">
               <div className="flex-1 min-w-48 relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
+                <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                    {isSearching ? (
+                      <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                      </svg>
+                    )}
+                  </div>
                 <input
                   type="text"
-                  placeholder="Cari nama KK atau No KK..."
+                  placeholder="Cari Nama KK, NIK, atau No KK..."
                   value={search}
                   onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none text-gray-900 bg-white font-medium placeholder-gray-400"
