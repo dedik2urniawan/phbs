@@ -1,0 +1,172 @@
+CREATE OR REPLACE FUNCTION sync_offline_composite(
+    p_household jsonb DEFAULT NULL,
+    p_members jsonb DEFAULT NULL,
+    p_survey jsonb DEFAULT NULL,
+    p_art_responses jsonb DEFAULT NULL
+) RETURNS jsonb AS $$
+DECLARE
+    v_kader_id uuid;
+    v_member jsonb;
+    v_art jsonb;
+    v_result jsonb = '{}'::jsonb;
+BEGIN
+    -- Dapatkan ID kader yang login
+    v_kader_id := auth.uid();
+    IF v_kader_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    -- 1. Upsert Household
+    IF p_household IS NOT NULL THEN
+        INSERT INTO households (
+            id, puskesmas_id, desa_id, no_kk, nik_kk, nama_kk, alamat, rt, rw, created_by, created_at, updated_at
+        ) VALUES (
+            (p_household->>'id')::uuid,
+            (p_household->>'puskesmas_id')::uuid,
+            (p_household->>'desa_id')::uuid,
+            p_household->>'no_kk',
+            p_household->>'nik_kk',
+            p_household->>'nama_kk',
+            p_household->>'alamat',
+            p_household->>'rt',
+            p_household->>'rw',
+            COALESCE((p_household->>'created_by')::uuid, v_kader_id),
+            (p_household->>'created_at')::timestamp,
+            (p_household->>'updated_at')::timestamp
+        )
+        ON CONFLICT (no_kk, puskesmas_id) DO UPDATE SET
+            desa_id = EXCLUDED.desa_id,
+            nik_kk = EXCLUDED.nik_kk,
+            nama_kk = EXCLUDED.nama_kk,
+            alamat = EXCLUDED.alamat,
+            rt = EXCLUDED.rt,
+            rw = EXCLUDED.rw,
+            updated_at = EXCLUDED.updated_at;
+    END IF;
+
+    -- 2. Upsert Family Members
+    IF p_members IS NOT NULL AND jsonb_array_length(p_members) > 0 THEN
+        FOR v_member IN SELECT * FROM jsonb_array_elements(p_members)
+        LOOP
+            IF (v_member->>'nik') IS NOT NULL AND (v_member->>'nik') != '' THEN
+                -- Upsert dengan NIK jika ada
+                INSERT INTO family_members (
+                    id, household_id, nama, nik, jenis_kelamin, tgl_lahir, hubungan_kk, pendidikan, pekerjaan, created_at
+                ) VALUES (
+                    (v_member->>'id')::uuid,
+                    (v_member->>'household_id')::uuid,
+                    v_member->>'nama',
+                    v_member->>'nik',
+                    v_member->>'jenis_kelamin',
+                    (v_member->>'tgl_lahir')::date,
+                    v_member->>'hubungan_kk',
+                    v_member->>'pendidikan',
+                    v_member->>'pekerjaan',
+                    (v_member->>'created_at')::timestamp
+                )
+                ON CONFLICT (nik) DO UPDATE SET
+                    nama = EXCLUDED.nama,
+                    jenis_kelamin = EXCLUDED.jenis_kelamin,
+                    tgl_lahir = EXCLUDED.tgl_lahir,
+                    hubungan_kk = EXCLUDED.hubungan_kk,
+                    pendidikan = EXCLUDED.pendidikan,
+                    pekerjaan = EXCLUDED.pekerjaan;
+            ELSE
+                -- Insert biasa jika tidak ada NIK (ID primary key akan handle)
+                INSERT INTO family_members (
+                    id, household_id, nama, nik, jenis_kelamin, tgl_lahir, hubungan_kk, pendidikan, pekerjaan, created_at
+                ) VALUES (
+                    (v_member->>'id')::uuid,
+                    (v_member->>'household_id')::uuid,
+                    v_member->>'nama',
+                    v_member->>'nik',
+                    v_member->>'jenis_kelamin',
+                    (v_member->>'tgl_lahir')::date,
+                    v_member->>'hubungan_kk',
+                    v_member->>'pendidikan',
+                    v_member->>'pekerjaan',
+                    (v_member->>'created_at')::timestamp
+                )
+                ON CONFLICT (id) DO UPDATE SET
+                    nama = EXCLUDED.nama,
+                    jenis_kelamin = EXCLUDED.jenis_kelamin,
+                    tgl_lahir = EXCLUDED.tgl_lahir,
+                    hubungan_kk = EXCLUDED.hubungan_kk,
+                    pendidikan = EXCLUDED.pendidikan,
+                    pekerjaan = EXCLUDED.pekerjaan;
+            END IF;
+        END LOOP;
+    END IF;
+
+    -- 3. Upsert Survey
+    IF p_survey IS NOT NULL THEN
+        INSERT INTO surveys (
+            id, household_id, tahun, survey_date, kader_id, is_rt_sehat, created_at, updated_at
+        ) VALUES (
+            (p_survey->>'id')::uuid,
+            (p_survey->>'household_id')::uuid,
+            (p_survey->>'tahun')::integer,
+            (p_survey->>'survey_date')::date,
+            COALESCE((p_survey->>'kader_id')::uuid, v_kader_id),
+            (p_survey->>'is_rt_sehat')::boolean,
+            (p_survey->>'created_at')::timestamp,
+            (p_survey->>'updated_at')::timestamp
+        )
+        ON CONFLICT (household_id, tahun) DO UPDATE SET
+            survey_date = EXCLUDED.survey_date,
+            kader_id = EXCLUDED.kader_id,
+            is_rt_sehat = EXCLUDED.is_rt_sehat,
+            updated_at = EXCLUDED.updated_at;
+    END IF;
+
+    -- 4. Upsert Survey ART Responses
+    IF p_art_responses IS NOT NULL AND jsonb_array_length(p_art_responses) > 0 THEN
+        FOR v_art IN SELECT * FROM jsonb_array_elements(p_art_responses)
+        LOOP
+            INSERT INTO survey_art_responses (
+                id, survey_id, family_member_id,
+                i1_persalinan_nakes, i2_asi_eksklusif, i3_menimbang_balita,
+                i5_cuci_tangan, i8_makan_sayur_buah, i9_aktivitas_fisik,
+                i10_tidak_merokok, g_cek_kesehatan, g_posyandu_hadir,
+                g_ibu_hamil, g_ibu_hamil_ttd, g_remaja_putri_ttd,
+                created_at, updated_at
+            ) VALUES (
+                (v_art->>'id')::uuid,
+                (v_art->>'survey_id')::uuid,
+                (v_art->>'family_member_id')::uuid,
+                (v_art->>'i1_persalinan_nakes')::boolean,
+                (v_art->>'i2_asi_eksklusif')::boolean,
+                (v_art->>'i3_menimbang_balita')::boolean,
+                (v_art->>'i5_cuci_tangan')::boolean,
+                (v_art->>'i8_makan_sayur_buah')::boolean,
+                (v_art->>'i9_aktivitas_fisik')::boolean,
+                (v_art->>'i10_tidak_merokok')::boolean,
+                (v_art->>'g_cek_kesehatan')::boolean,
+                (v_art->>'g_posyandu_hadir')::boolean,
+                (v_art->>'g_ibu_hamil')::boolean,
+                (v_art->>'g_ibu_hamil_ttd')::boolean,
+                (v_art->>'g_remaja_putri_ttd')::boolean,
+                (v_art->>'created_at')::timestamp,
+                (v_art->>'updated_at')::timestamp
+            )
+            ON CONFLICT (survey_id, family_member_id) DO UPDATE SET
+                i1_persalinan_nakes = EXCLUDED.i1_persalinan_nakes,
+                i2_asi_eksklusif = EXCLUDED.i2_asi_eksklusif,
+                i3_menimbang_balita = EXCLUDED.i3_menimbang_balita,
+                i5_cuci_tangan = EXCLUDED.i5_cuci_tangan,
+                i8_makan_sayur_buah = EXCLUDED.i8_makan_sayur_buah,
+                i9_aktivitas_fisik = EXCLUDED.i9_aktivitas_fisik,
+                i10_tidak_merokok = EXCLUDED.i10_tidak_merokok,
+                g_cek_kesehatan = EXCLUDED.g_cek_kesehatan,
+                g_posyandu_hadir = EXCLUDED.g_posyandu_hadir,
+                g_ibu_hamil = EXCLUDED.g_ibu_hamil,
+                g_ibu_hamil_ttd = EXCLUDED.g_ibu_hamil_ttd,
+                g_remaja_putri_ttd = EXCLUDED.g_remaja_putri_ttd,
+                updated_at = EXCLUDED.updated_at;
+        END LOOP;
+    END IF;
+
+    v_result := jsonb_build_object('success', true);
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

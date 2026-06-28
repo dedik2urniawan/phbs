@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { offlineDB, nowISO } from '@/lib/db/offline'
-import { enqueueSync } from '@/lib/db/sync'
+import { enqueueCompositeSync } from '@/lib/db/sync'
 import { validateNoKK } from '@/lib/validators/nik'
 import SyncStatusBar from '@/components/SyncStatusBar'
 
@@ -87,7 +87,7 @@ export default function EditHouseholdClient({ household, appUser, desaList, allP
         const exists = await offlineDB.households.get(household.id)
         if (exists) {
           await offlineDB.households.update(household.id, { ...updateData, sync_status: 'pending' })
-          await enqueueSync('households', household.id, 'update', updateData)
+          await enqueueCompositeSync({ household: updateData })
         } else {
           setError('Anda sedang offline dan data ini belum tersinkronisasi di lokal.')
           setSubmitting(false)

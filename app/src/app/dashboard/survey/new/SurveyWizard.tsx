@@ -6,7 +6,7 @@ import { validateNIK } from '@/lib/validators/nik'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { offlineDB, generateLocalId, nowISO, LocalFamilyMember, LocalKaderPhbs } from '@/lib/db/offline'
-import { enqueueSync } from '@/lib/db/sync'
+import { enqueueCompositeSync } from '@/lib/db/sync'
 import SyncStatusBar from '@/components/SyncStatusBar'
 import { hitungSkorPHBS, getARTQuestions, hitungUsia, ArtResponse, SurveyIndikator } from '@/lib/phbs/scoring'
 
@@ -294,9 +294,9 @@ export default function SurveyWizard({
           hasNik ? { onConflict: 'nik' } : undefined
         )
         if (!err) await offlineDB.family_members.update(artId, { sync_status: 'synced' })
-        else await enqueueSync('family_members', artId, 'insert', record)
+        else await enqueueCompositeSync({ members: [record] })
       } else {
-        await enqueueSync('family_members', artId, 'insert', record)
+        await enqueueCompositeSync({ members: [record] })
       }
 
       // Update local state
@@ -449,49 +449,36 @@ export default function SurveyWizard({
 
       // 2. Coba simpan ke server jika online
       if (navigator.onLine) {
-        const { error: sbErr } = await supabase.from('surveys').upsert(
-          { ...record, sync_status: undefined },
-          { onConflict: 'household_id, tahun' }
-        )
-        
-        if (!sbErr) {
-          await offlineDB.surveys.update(id, { sync_status: 'synced' })
-          
-          const payloads = artRecordsToSave.map(r => {
+        const { error: rpcErr } = await supabase.rpc('sync_offline_composite', {
+          p_household: null,
+          p_members: null,
+          p_survey: { ...record, sync_status: undefined },
+          p_art_responses: artRecordsToSave.map(r => {
              const { sync_status, ...rest } = r;
              return rest;
           })
-          const { error: artErr } = await supabase.from('survey_art_responses').upsert(
-            payloads, 
-            { onConflict: 'survey_id, family_member_id' }
-          )
-          
-          if (!artErr) {
-            for (const artRecord of artRecordsToSave) {
-               await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
-            }
-          } else {
-            for (const artRecord of artRecordsToSave) {
-               await enqueueSync('survey_art_responses', artRecord.id, 'insert', artRecord)
-            }
+        });
+
+        if (!rpcErr) {
+          await offlineDB.surveys.update(id, { sync_status: 'synced' })
+          for (const artRecord of artRecordsToSave) {
+             await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
           }
         } else {
-          if (sbErr.code === '23505') {
-            await offlineDB.surveys.delete(id)
-            for (const artRecord of artRecordsToSave) await offlineDB.survey_art_responses.delete(artRecord.id)
+          if (rpcErr.code === '23505' || rpcErr.message?.includes('23505')) {
             setError('Survei untuk KK ini di tahun ini sudah ada.')
             setSubmitting(false); return
           }
-          await enqueueSync('surveys', id, 'insert', record)
-          for (const artRecord of artRecordsToSave) {
-             await enqueueSync('survey_art_responses', artRecord.id, 'insert', artRecord)
-          }
+          await enqueueCompositeSync({
+             survey: record,
+             art_responses: artRecordsToSave
+          })
         }
       } else {
-        await enqueueSync('surveys', id, 'insert', record)
-        for (const artRecord of artRecordsToSave) {
-           await enqueueSync('survey_art_responses', artRecord.id, 'insert', artRecord)
-        }
+        await enqueueCompositeSync({
+           survey: record,
+           art_responses: artRecordsToSave
+        })
       }
 
       setDone(true)

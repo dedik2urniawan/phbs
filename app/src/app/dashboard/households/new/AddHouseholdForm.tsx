@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { offlineDB, generateLocalId, nowISO } from '@/lib/db/offline'
-import { enqueueSync } from '@/lib/db/sync'
+import { enqueueCompositeSync } from '@/lib/db/sync'
 import { validateNoKK } from '@/lib/validators/nik'
 import SyncStatusBar from '@/components/SyncStatusBar'
 import AddFamilyMemberForm, { FamilyMemberInput } from './AddFamilyMemberForm'
@@ -140,13 +140,12 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
             setSubmitting(false)
             return
           }
-          // Error lain: masuk queue untuk retry
-          await enqueueSync('households', id, 'update', record)
+          await enqueueCompositeSync({ household: record })
         } else {
           await offlineDB.households.update(id, { sync_status: 'synced' })
         }
       } else {
-        await enqueueSync('households', id, 'update', record)
+        await enqueueCompositeSync({ household: record })
       }
 
       setHouseholdId(id)
@@ -181,17 +180,14 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
 
       if (navigator.onLine) {
         const hasNik = !!record.nik
-        const { error } = await supabase.from('family_members').upsert(
+        const { error: err } = await supabase.from('family_members').upsert(
           { ...record, sync_status: undefined },
           hasNik ? { onConflict: 'nik' } : undefined
         )
-        if (!error) {
-          await offlineDB.family_members.update(id, { sync_status: 'synced' })
-        } else {
-          await enqueueSync('family_members', id, 'update', record)
-        }
+        if (!err) await offlineDB.family_members.update(id, { sync_status: 'synced' })
+        else await enqueueCompositeSync({ members: [record] })
       } else {
-        await enqueueSync('family_members', id, 'update', record)
+        await enqueueCompositeSync({ members: [record] })
       }
     }
 

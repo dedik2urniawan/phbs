@@ -99,6 +99,21 @@ async function processQueueItem(item: SyncQueueItem) {
 
     const { error } = await supabase.from(item.table_name).upsert(payload, upsertOpts)
     if (error) throw error
+  } else if (item.operation === 'composite') {
+    // ----------------------------------------------------
+    // COMPOSITE ATOMIC RPC SYNC
+    // ----------------------------------------------------
+    const { error } = await supabase.rpc('sync_offline_composite', {
+      p_household: payload.household || null,
+      p_members: payload.members || null,
+      p_survey: payload.survey || null,
+      p_art_responses: payload.art_responses || null
+    })
+    
+    if (error) {
+      console.error("[SYNC RPC ERROR]", error)
+      throw error
+    }
   } else if (item.operation === 'delete') {
     const { error } = await supabase
       .from(item.table_name)
@@ -143,4 +158,55 @@ export async function enqueueSync(
  */
 export async function getPendingSyncCount(): Promise<number> {
   return offlineDB.sync_queue.count()
+}
+
+/**
+ * Validasi mendalam untuk UUID "undefined" atau string kosong pada Foreign Key
+ */
+function validatePayloadUUIDs(obj: any, path: string = ''): void {
+  if (!obj) return
+  if (Array.isArray(obj)) {
+    obj.forEach((item, index) => validatePayloadUUIDs(item, `${path}[${index}]`))
+  } else if (typeof obj === 'object') {
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string') {
+        if (value === 'undefined') {
+          throw new Error(`Deteksi anomali pada field [${path}${key}]: Nilai berisi string literal "undefined"`)
+        }
+        if ((key === 'id' || key.endsWith('_id')) && value.trim() === '') {
+          throw new Error(`Deteksi anomali pada field [${path}${key}]: Foreign Key UUID tidak boleh kosong (empty string)`)
+        }
+      }
+      if (typeof value === 'object') {
+        validatePayloadUUIDs(value, `${path}${key}.`)
+      }
+    }
+  }
+}
+
+/**
+ * Tambah item Composite ke antrian sync (Atomic)
+ */
+export async function enqueueCompositeSync(payload: {
+  household?: any | null,
+  members?: any[] | null,
+  survey?: any | null,
+  art_responses?: any[] | null
+}) {
+  // UUID Guard Layer
+  validatePayloadUUIDs(payload)
+
+  const payloadStr = JSON.stringify(payload)
+  
+  // Gunakan ID unik untuk composite queue item, e.g. survey ID atau household ID
+  const recordId = payload.survey?.id || payload.household?.id || 'composite_batch'
+
+  await offlineDB.sync_queue.add({
+    table_name: 'composite_sync',
+    record_id: recordId,
+    operation: 'composite' as any, // TypeScript bypass for the operation enum
+    payload: payloadStr,
+    created_at: new Date().toISOString(),
+    retries: 0,
+  })
 }
