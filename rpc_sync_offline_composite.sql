@@ -52,10 +52,18 @@ BEGIN
             updated_at = EXCLUDED.updated_at
         RETURNING id INTO v_household_id_final;
     ELSE
-        v_household_id_final := NULL;
+        -- Jika payload household kosong (misalnya karena survei untuk KK yang sudah ada),
+        -- ekstrak household_id dari payload child (survei atau anggota).
+        IF p_survey IS NOT NULL THEN
+            v_household_id_final := (p_survey->>'household_id')::uuid;
+        ELSIF p_members IS NOT NULL AND jsonb_array_length(p_members) > 0 THEN
+            v_household_id_final := (p_members->0->>'household_id')::uuid;
+        ELSE
+            v_household_id_final := NULL;
+        END IF;
     END IF;
 
-    -- Guard: Jika ada member atau survei, household_id HARUS berhasil didapatkan
+    -- Guard: Jika ada member atau survei, household_id HARUS berhasil didapatkan (dari master atau child)
     IF (p_members IS NOT NULL AND jsonb_array_length(p_members) > 0) OR (p_survey IS NOT NULL) THEN
         IF v_household_id_final IS NULL THEN
             RAISE EXCEPTION 'Household ID could not be resolved before member/survey upsert. Parent missing!';
