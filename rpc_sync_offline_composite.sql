@@ -3,7 +3,11 @@ CREATE OR REPLACE FUNCTION sync_offline_composite(
     p_members jsonb DEFAULT NULL,
     p_survey jsonb DEFAULT NULL,
     p_art_responses jsonb DEFAULT NULL
-) RETURNS jsonb AS $$
+) RETURNS jsonb
+LANGUAGE plpgsql 
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
     v_kader_id uuid;
     v_member jsonb;
@@ -255,4 +259,11 @@ EXCEPTION
     WHEN OTHERS THEN
         RAISE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+-- Cabut akses eksekusi dari sembarang role (anon / public)
+REVOKE EXECUTE ON FUNCTION public.sync_offline_composite(jsonb, jsonb, jsonb, jsonb) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.sync_offline_composite(jsonb, jsonb, jsonb, jsonb) FROM anon;
+
+-- Hanya role terautentikasi (kader login) yang boleh menjalankan sinkronisasi
+GRANT EXECUTE ON FUNCTION public.sync_offline_composite(jsonb, jsonb, jsonb, jsonb) TO authenticated;
