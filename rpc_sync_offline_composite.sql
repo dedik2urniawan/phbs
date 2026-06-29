@@ -14,6 +14,7 @@ DECLARE
     v_art jsonb;
     v_household_id_final uuid;
     v_member_id_final uuid;
+    v_survey_id_final uuid;
     v_member_map jsonb := '{}'::jsonb;
     v_mapped_member_id uuid;
     v_result jsonb = '{}'::jsonb;
@@ -196,11 +197,21 @@ BEGIN
             denominator_phbs = EXCLUDED.denominator_phbs,
             is_rt_sehat = EXCLUDED.is_rt_sehat,
             kategori_phbs = EXCLUDED.kategori_phbs,
-            updated_at = EXCLUDED.updated_at;
+            updated_at = EXCLUDED.updated_at
+        RETURNING id INTO v_survey_id_final;
     END IF;
 
     -- 4. Upsert Survey ART Responses + Gunakan ID Member Final dari Peta Memori
     IF p_art_responses IS NOT NULL AND jsonb_array_length(p_art_responses) > 0 THEN
+        -- Pastikan ID survei sudah terambil dengan benar
+        IF v_survey_id_final IS NULL THEN
+            IF p_survey IS NOT NULL THEN
+                RAISE EXCEPTION 'Survey upsert did not return id';
+            ELSE
+                v_survey_id_final := (p_art_responses->0->>'survey_id')::uuid;
+            END IF;
+        END IF;
+
         FOR v_art IN SELECT * FROM jsonb_array_elements(p_art_responses)
         LOOP
             -- Coba ambil ID Final dari Peta Memori
@@ -219,7 +230,7 @@ BEGIN
                 created_at, updated_at
             ) VALUES (
                 (v_art->>'id')::uuid,
-                (v_art->>'survey_id')::uuid,
+                v_survey_id_final, -- GUNAKAN ID FINAL SURVEI
                 v_mapped_member_id, -- GUNAKAN ID FINAL MEMBER hasil pemetaan
                 (v_art->>'i1_persalinan_nakes')::boolean,
                 (v_art->>'i2_asi_eksklusif')::boolean,
@@ -256,7 +267,9 @@ BEGIN
     -- Selesai, kembalikan status sukses beserta ID rumah tangga final
     v_result := jsonb_build_object(
         'success', true, 
-        'household_id', v_household_id_final
+        'household_id', v_household_id_final,
+        'survey_id', v_survey_id_final,
+        'member_map_count', jsonb_object_length(v_member_map)
     );
     RETURN v_result;
 
