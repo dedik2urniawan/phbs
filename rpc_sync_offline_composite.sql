@@ -268,8 +268,7 @@ BEGIN
     v_result := jsonb_build_object(
         'success', true, 
         'household_id', v_household_id_final,
-        'survey_id', v_survey_id_final,
-        'member_map_count', jsonb_object_length(v_member_map)
+        'survey_id', v_survey_id_final
     );
     RETURN v_result;
 
@@ -288,3 +287,6 @@ REVOKE EXECUTE ON FUNCTION public.sync_offline_composite(jsonb, jsonb, jsonb, js
 
 -- Hanya role terautentikasi (kader login) yang boleh menjalankan sinkronisasi
 GRANT EXECUTE ON FUNCTION public.sync_offline_composite(jsonb, jsonb, jsonb, jsonb) TO authenticated;
+
+-- Paksa PostgREST untuk memuat ulang schema agar tidak terjadi error 404
+NOTIFY pgrst, 'reload schema';
