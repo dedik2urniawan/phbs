@@ -451,7 +451,10 @@ export default function SurveyWizard({
       if (navigator.onLine) {
         const { error: rpcErr } = await supabase.rpc('sync_offline_composite', {
           p_household: null,
-          p_members: null,
+          p_members: members.map(m => {
+            const { sync_status, ...rest } = m as any;
+            return rest;
+          }),
           p_survey: { ...record, sync_status: undefined },
           p_art_responses: artRecordsToSave.map(r => {
              const { sync_status, ...rest } = r;
@@ -470,12 +473,14 @@ export default function SurveyWizard({
             setSubmitting(false); return
           }
           await enqueueCompositeSync({
+             members: members as any,
              survey: record,
              art_responses: artRecordsToSave
           })
         }
       } else {
         await enqueueCompositeSync({
+           members: members as any,
            survey: record,
            art_responses: artRecordsToSave
         })
