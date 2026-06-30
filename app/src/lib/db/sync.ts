@@ -163,7 +163,7 @@ export async function getPendingSyncCount(): Promise<number> {
 /**
  * Validasi mendalam untuk UUID "undefined" atau string kosong pada Foreign Key
  */
-function validatePayloadUUIDs(obj: any, path: string = ''): void {
+export function validatePayloadUUIDs(obj: any, path: string = ''): void {
   if (!obj) return
   if (Array.isArray(obj)) {
     obj.forEach((item, index) => validatePayloadUUIDs(item, `${path}[${index}]`))

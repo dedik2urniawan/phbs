@@ -119,14 +119,19 @@ export default function HouseholdsClient({
   }, [search, selectedPkm, isSuperAdmin, appUser.puskesmas_id, supabase])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus data KK ini? Data survei yang terkait juga mungkin akan terhapus.')) return;
+    if (!confirm('Apakah Anda yakin ingin menghapus data KK ini?')) return;
     
     const { error } = await supabase.from('households').delete().eq('id', id);
     if (!error) {
       setHouseholds(prev => prev.filter(h => h.id !== id));
       setTotal(prev => prev - 1);
+      alert('Data KK berhasil dihapus.');
     } else {
-      alert('Gagal menghapus data KK: ' + error.message);
+      if (error.code === '23503') {
+        alert('Maaf, KK ini tidak bisa dihapus karena sudah memiliki Anggota Keluarga atau riwayat Survei. Harap hapus anggotanya terlebih dahulu jika Anda benar-benar ingin menghapusnya.');
+      } else {
+        alert('Gagal menghapus data KK: ' + error.message);
+      }
     }
   }
 

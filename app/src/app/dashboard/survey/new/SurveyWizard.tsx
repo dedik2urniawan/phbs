@@ -6,7 +6,7 @@ import { validateNIK } from '@/lib/validators/nik'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { offlineDB, generateLocalId, nowISO, LocalFamilyMember, LocalKaderPhbs } from '@/lib/db/offline'
-import { enqueueCompositeSync } from '@/lib/db/sync'
+import { enqueueCompositeSync, validatePayloadUUIDs } from '@/lib/db/sync'
 import SyncStatusBar from '@/components/SyncStatusBar'
 import { hitungSkorPHBS, getARTQuestions, hitungUsia, ArtResponse, SurveyIndikator } from '@/lib/phbs/scoring'
 
@@ -449,7 +449,7 @@ export default function SurveyWizard({
 
       // 2. Coba simpan ke server jika online
       if (navigator.onLine) {
-        const { error: rpcErr } = await supabase.rpc('sync_offline_composite', {
+        const rpcPayload = {
           p_household: null,
           p_members: members.map(m => {
             const { sync_status, ...rest } = m as any;
@@ -460,7 +460,9 @@ export default function SurveyWizard({
              const { sync_status, ...rest } = r;
              return rest;
           })
-        });
+        };
+        validatePayloadUUIDs(rpcPayload);
+        const { error: rpcErr } = await supabase.rpc('sync_offline_composite', rpcPayload);
 
         if (!rpcErr) {
           await offlineDB.surveys.update(id, { sync_status: 'synced' })
