@@ -16,6 +16,12 @@ export async function isOnline(): Promise<boolean> {
 export async function syncToServer(): Promise<{ synced: number; errors: number }> {
   if (!(await isOnline())) return { synced: 0, errors: 0 }
 
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (!session || sessionError) {
+    console.warn('Sync aborted: Sesi login tidak valid atau sudah kedaluwarsa.')
+    return { synced: 0, errors: 0 }
+  }
+
   const queue = await offlineDB.sync_queue
     .orderBy('created_at')
     .filter(q => q.retries < 3)

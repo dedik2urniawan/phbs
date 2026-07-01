@@ -125,25 +125,28 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
 
       // Coba simpan ke Supabase langsung
       if (navigator.onLine) {
-        if (JSON.stringify(record).includes('"undefined"')) {
-          throw new Error("Data KK tidak valid (terdapat field undefined). Silakan muat ulang halaman.")
-        }
-        const { error: sbError } = await supabase.from('households').upsert({
-          ...record,
-          sync_status: undefined,
-        }, { onConflict: 'no_kk,puskesmas_id' })
-        if (sbError) {
-          // Jika error duplikat no_kk
-          if (sbError.code === '23505') {
-            await offlineDB.households.delete(id)
-            setError('No KK sudah terdaftar di database. Gunakan No KK yang berbeda.')
-            setSubmitting(false)
-            return
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          if (JSON.stringify(record).includes('"undefined"')) {
+            throw new Error("Data KK tidak valid (terdapat field undefined). Silakan muat ulang halaman.")
           }
-          // Jika error jaringan dll, biarkan berstatus pending. 
-          // Antrean komposit akan dikirim sekaligus di tahap handleMembersDone.
-        } else {
-          await offlineDB.households.update(id, { sync_status: 'synced' })
+          const { error: sbError } = await supabase.from('households').upsert({
+            ...record,
+            sync_status: undefined,
+          }, { onConflict: 'no_kk,puskesmas_id' })
+          if (sbError) {
+            // Jika error duplikat no_kk
+            if (sbError.code === '23505') {
+              await offlineDB.households.delete(id)
+              setError('No KK sudah terdaftar di database. Gunakan No KK yang berbeda.')
+              setSubmitting(false)
+              return
+            }
+            // Jika error jaringan dll, biarkan berstatus pending. 
+            // Antrean komposit akan dikirim sekaligus di tahap handleMembersDone.
+          } else {
+            await offlineDB.households.update(id, { sync_status: 'synced' })
+          }
         }
       }
 

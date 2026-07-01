@@ -448,7 +448,13 @@ export default function SurveyWizard({
       }
 
       // 2. Coba simpan ke server jika online
+      let sessionValid = false;
       if (navigator.onLine) {
+        const { data: { session } } = await supabase.auth.getSession()
+        sessionValid = !!session
+      }
+
+      if (navigator.onLine && sessionValid) {
         const rpcPayload = {
           p_household: null,
           p_members: members.map(m => {
