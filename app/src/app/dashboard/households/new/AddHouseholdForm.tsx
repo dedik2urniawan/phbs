@@ -123,29 +123,22 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
       // Simpan ke IndexedDB dulu
       await offlineDB.households.add(record)
 
-      // Coba simpan ke Supabase langsung
+      // Cek duplikasi ke server secara online (tanpa upsert langsung)
       if (navigator.onLine) {
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {
-          if (JSON.stringify(record).includes('"undefined"')) {
-            throw new Error("Data KK tidak valid (terdapat field undefined). Silakan muat ulang halaman.")
-          }
-          const { error: sbError } = await supabase.from('households').upsert({
-            ...record,
-            sync_status: undefined,
-          }, { onConflict: 'no_kk,puskesmas_id' })
-          if (sbError) {
-            // Jika error duplikat no_kk
-            if (sbError.code === '23505') {
-              await offlineDB.households.delete(id)
-              setError('No KK sudah terdaftar di database. Gunakan No KK yang berbeda.')
-              setSubmitting(false)
-              return
-            }
-            // Jika error jaringan dll, biarkan berstatus pending. 
-            // Antrean komposit akan dikirim sekaligus di tahap handleMembersDone.
-          } else {
-            await offlineDB.households.update(id, { sync_status: 'synced' })
+          const { data: existing } = await supabase
+            .from('households')
+            .select('id')
+            .eq('no_kk', record.no_kk)
+            .eq('puskesmas_id', record.puskesmas_id)
+            .maybeSingle()
+            
+          if (existing) {
+            await offlineDB.households.delete(id)
+            setError('No KK sudah terdaftar di database. Gunakan No KK yang berbeda.')
+            setSubmitting(false)
+            return
           }
         }
       }
