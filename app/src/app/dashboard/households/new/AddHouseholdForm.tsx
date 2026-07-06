@@ -181,36 +181,11 @@ export default function AddHouseholdForm({ appUser, desaList, allPuskesmas = [],
     const householdRecord = await offlineDB.households.get(householdId)
     const isHouseholdPending = householdRecord && householdRecord.sync_status === 'pending'
 
-    if (navigator.onLine) {
-      // Jika online, coba upsert ke Supabase
-      let allMembersSuccess = true
-      for (const record of membersRecords) {
-        const hasNik = !!record.nik
-        const { error: err } = await supabase.from('family_members').upsert(
-          { ...record, sync_status: undefined },
-          hasNik ? { onConflict: 'nik' } : undefined
-        )
-        if (!err) {
-          await offlineDB.family_members.update(record.id, { sync_status: 'synced' })
-        } else {
-          allMembersSuccess = false
-        }
-      }
-
-      // Jika ada gagal, masukkan ke antrean dengan membawa household jika household juga belum tersinkron
-      if (!allMembersSuccess) {
-        await enqueueCompositeSync({
-          household: isHouseholdPending ? householdRecord : undefined,
-          members: membersRecords
-        })
-      }
-    } else {
-      // Jika offline, masukkan semua sekaligus dalam 1 paket komposit!
-      await enqueueCompositeSync({
-        household: isHouseholdPending ? householdRecord : undefined,
-        members: membersRecords
-      })
-    }
+    // Selalu masukkan ke antrean sinkronisasi untuk menjaga integritas RLS
+    await enqueueCompositeSync({
+      household: isHouseholdPending ? householdRecord : undefined,
+      members: membersRecords
+    })
 
     setStep('done')
   }

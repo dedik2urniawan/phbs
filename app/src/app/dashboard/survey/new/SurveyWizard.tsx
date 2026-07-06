@@ -286,18 +286,8 @@ export default function SurveyWizard({
       // Save offline
       await offlineDB.family_members.add(record)
       
-      // Save online if possible
-      if (navigator.onLine) {
-        const hasNik = !!record.nik
-        const { error: err } = await supabase.from('family_members').upsert(
-          { ...record, sync_status: undefined },
-          hasNik ? { onConflict: 'nik' } : undefined
-        )
-        if (!err) await offlineDB.family_members.update(artId, { sync_status: 'synced' })
-        else await enqueueCompositeSync({ members: [record] })
-      } else {
-        await enqueueCompositeSync({ members: [record] })
-      }
+      // Selalu masukkan ke antrean sinkronisasi untuk menjaga integritas RLS
+      await enqueueCompositeSync({ members: [record] })
 
       // Update local state
       setMembers(prev => [...prev, record])
