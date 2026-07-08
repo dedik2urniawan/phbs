@@ -22,7 +22,8 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
 
   // Halaman publik — tidak perlu auth
   const isPublic = pathname === '/' ||

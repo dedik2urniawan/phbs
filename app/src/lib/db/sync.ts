@@ -56,7 +56,8 @@ export async function syncReferenceData(): Promise<void> {
   if (!(await isOnline())) return
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
     if (!user) return
 
     const { data: appUser } = await supabase

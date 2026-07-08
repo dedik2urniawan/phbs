@@ -7,7 +7,8 @@ export async function updateUserPassword(targetUserId: string, newPassword: stri
   try {
     // 1. Verifikasi Sesi Pemanggil (Siapa yang sedang login?)
     const supabaseClient = await createClient()
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    const { data: { session }, error: authError } = await supabaseClient.auth.getSession()
+    const user = session?.user
     
     if (authError || !user) {
       throw new Error('Tidak memiliki akses (Sesi tidak valid)')

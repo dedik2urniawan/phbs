@@ -5,7 +5,8 @@ import EditHouseholdClient from '@/app/dashboard/households/[id]/edit/EditHouseh
 export default async function EditEntryHouseholdPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
   if (!user) redirect('/login?mode=pwa')
 
   const { data: appUser } = await supabase

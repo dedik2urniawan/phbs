@@ -7,7 +7,8 @@ export default async function AnalisisLaporanPage({ searchParams }: { searchPara
   const params = await searchParams
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
   if (!user) redirect('/login?mode=admin')
 
   const { data: appUser } = await supabase

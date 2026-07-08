@@ -4,7 +4,8 @@ import AddHouseholdForm from './AddHouseholdForm'
 
 export default async function NewHouseholdPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
   if (!user) redirect('/login?mode=admin')
 
   const { data: appUser } = await supabase

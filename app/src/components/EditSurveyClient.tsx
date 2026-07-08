@@ -264,47 +264,19 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
         try { await offlineDB.survey_art_responses.put({ ...artRecord, sync_status: 'pending' }) } catch (_) {}
       }
 
-      // 3. Try to sync server if online
+      // 3. Selalu masukkan ke antrean sinkronisasi (Offline-First Single Write Path)
+      if (exists) {
+        await offlineDB.surveys.update(survey.id, { sync_status: 'pending' } as any)
+      }
+      await enqueueSync('surveys', survey.id, 'update', record)
+      
+      for (const artRecord of artRecordsToSave) {
+        await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
+      }
+
+      // Segera jalankan sinkronisasi jika online
       if (navigator.onLine) {
-        const { error: sbErr } = await supabase.from('surveys').update(record).eq('id', survey.id)
-        
-        if (!sbErr) {
-          if (exists) await offlineDB.surveys.update(survey.id, { sync_status: 'synced' } as any)
-          
-          for (const artRecord of artRecordsToSave) {
-            const { error: artErr } = await supabase.from('survey_art_responses')
-              .upsert({ ...artRecord }, { onConflict: 'survey_id,family_member_id' })
-            if (!artErr) {
-               await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
-            } else {
-               await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
-            }
-          }
-        } else {
-          // If update survey fails, we need to enqueue it
-          if (exists) {
-            await offlineDB.surveys.update(survey.id, { sync_status: 'pending' } as any)
-            await enqueueSync('surveys', survey.id, 'update', record)
-            for (const artRecord of artRecordsToSave) {
-              await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
-            }
-          } else {
-            throw sbErr // fallback error if we can't queue offline
-          }
-        }
-      } else {
-        // Offline logic
-        if (exists) {
-          await offlineDB.surveys.update(survey.id, { sync_status: 'pending' } as any)
-          await enqueueSync('surveys', survey.id, 'update', record)
-          for (const artRecord of artRecordsToSave) {
-             await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
-          }
-        } else {
-          setError('Anda sedang offline dan data survei ini tidak ada di lokal.')
-          setSubmitting(false)
-          return
-        }
+        import('@/lib/db/sync').then(({ syncToServer }) => syncToServer());
       }
 
       setDone(true)

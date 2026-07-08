@@ -92,22 +92,20 @@ export default function EditMemberClient({ member, householdId, nama_kk, basePat
     }
 
     try {
-      if (navigator.onLine) {
-        const { error: sbError } = await supabase.from('family_members').update(updateData).eq('id', member.id)
-        if (sbError) throw sbError
-        // Update local if exists
-        const exists = await offlineDB.family_members.get(member.id)
-        if (exists) await offlineDB.family_members.update(member.id, updateData)
+      // Selalu masukkan ke antrean sinkronisasi (Offline-First Single Write Path)
+      const exists = await offlineDB.family_members.get(member.id)
+      if (exists) {
+        await offlineDB.family_members.update(member.id, { ...updateData, sync_status: 'pending' })
+        await enqueueSync('family_members', member.id, 'update', updateData)
       } else {
-        const exists = await offlineDB.family_members.get(member.id)
-        if (exists) {
-          await offlineDB.family_members.update(member.id, { ...updateData, sync_status: 'pending' })
-          await enqueueCompositeSync({ members: [updateData] })
-        } else {
-          setError('Anda sedang offline dan data ini belum tersinkronisasi di lokal.')
-          setSubmitting(false)
-          return
-        }
+        setError('Data ini belum tersinkronisasi di lokal, tidak dapat diubah.')
+        setSubmitting(false)
+        return
+      }
+
+      // Segera jalankan sinkronisasi jika online
+      if (navigator.onLine) {
+        import('@/lib/db/sync').then(({ syncToServer }) => syncToServer());
       }
 
       router.push(`${basePath}/households/${householdId}`)
