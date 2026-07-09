@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { offlineDB, nowISO } from '@/lib/db/offline'
-import { enqueueCompositeSync } from '@/lib/db/sync'
+import { enqueueCompositeSync, enqueueSync } from '@/lib/db/sync'
 import { validateNoKK } from '@/lib/validators/nik'
 import SyncStatusBar from '@/components/SyncStatusBar'
 
