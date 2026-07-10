@@ -18,7 +18,13 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
 
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   if (!session || sessionError) {
-    console.warn('Sync aborted: Sesi login tidak valid atau sudah kedaluwarsa.')
+    console.warn('Sync aborted: Sesi login tidak valid atau sudah kedaluwarsa.', sessionError?.message)
+    
+    // Jika token refresh hilang/invalid, bersihkan sesi secara paksa agar tidak terjadi loop spam
+    if (sessionError && (sessionError.message.includes('refresh_token_not_found') || sessionError.message.includes('Invalid Refresh Token'))) {
+      try { await supabase.auth.signOut() } catch (_) {}
+    }
+    
     return { synced: 0, errors: 0 }
   }
 
