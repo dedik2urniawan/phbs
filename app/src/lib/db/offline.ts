@@ -88,7 +88,7 @@ export interface SyncQueueItem {
   id?: number             // auto-increment
   table_name: string
   record_id: string
-  operation: 'insert' | 'update' | 'delete' | 'composite'
+  operation: 'insert' | 'update' | 'upsert' | 'delete' | 'composite'
   payload: string         // JSON.stringify(record)
   created_at: string
   retries: number
