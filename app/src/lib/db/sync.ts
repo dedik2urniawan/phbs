@@ -98,7 +98,7 @@ async function processQueueItem(item: SyncQueueItem) {
   // Hapus field lokal yang tidak ada di server
   delete payload.sync_status
 
-  if (item.operation === 'insert' || item.operation === 'update') {
+  if (item.operation === 'insert' || item.operation === 'upsert') {
     let upsertOpts = undefined
     if (item.table_name === 'households') {
       upsertOpts = { onConflict: 'no_kk,puskesmas_id' }
@@ -111,6 +111,9 @@ async function processQueueItem(item: SyncQueueItem) {
     }
 
     const { error } = await supabase.from(item.table_name).upsert(payload, upsertOpts)
+    if (error) throw error
+  } else if (item.operation === 'update') {
+    const { error } = await supabase.from(item.table_name).update(payload).eq('id', item.record_id)
     if (error) throw error
   } else if (item.operation === 'composite') {
     // ----------------------------------------------------
@@ -146,7 +149,7 @@ async function processQueueItem(item: SyncQueueItem) {
 export async function enqueueSync(
   tableName: string,
   recordId: string,
-  operation: 'insert' | 'update' | 'delete',
+  operation: 'insert' | 'update' | 'upsert' | 'delete',
   payload: object
 ) {
   // FIX: Prevent "undefined" UUID errors

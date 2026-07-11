@@ -271,7 +271,7 @@ export default function EditSurveyClient({ appUser, survey, household, basePath 
       await enqueueSync('surveys', survey.id, 'update', record)
       
       for (const artRecord of artRecordsToSave) {
-        await enqueueSync('survey_art_responses', artRecord.id, 'update', artRecord)
+        await enqueueSync('survey_art_responses', artRecord.id, 'upsert', artRecord)
       }
 
       // Segera jalankan sinkronisasi jika online
