@@ -34,17 +34,9 @@ export default function DashboardLayoutWrapper({
     const events = ['mousemove', 'keydown', 'scroll', 'touchstart', 'click']
     events.forEach(event => window.addEventListener(event, resetTimeout))
 
-    // Listen for auth state changes (e.g. refresh_token_not_found leading to sign out)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
-        router.push('/login?mode=admin&session=expired')
-      }
-    })
-
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       events.forEach(event => window.removeEventListener(event, resetTimeout))
-      subscription.unsubscribe()
     }
   }, [router, supabase])
 
