@@ -12,7 +12,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // Jika session mati atau terhapus, pastikan kita tendang ke halaman login.
-      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+      if (event === 'SIGNED_OUT') {
         // Jangan loop jika sudah di halaman login
         if (pathname && !pathname.startsWith('/login')) {
           router.push('/login?session=expired')
