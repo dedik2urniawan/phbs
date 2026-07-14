@@ -23,6 +23,11 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
     // Jika token refresh hilang/invalid, bersihkan sesi secara paksa agar tidak terjadi loop spam
     if (sessionError && (sessionError.message.includes('refresh_token_not_found') || sessionError.message.includes('Invalid Refresh Token'))) {
       try { await supabase.auth.signOut() } catch (_) {}
+      
+      // HARD RELOAD: Memaksa PWA versi lama membersihkan memori dan memuat ulang JS bundle dari server!
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login?session=expired'
+      }
     }
     
     return { synced: 0, errors: 0 }
@@ -152,7 +157,13 @@ export async function enqueueSync(
   operation: 'insert' | 'update' | 'upsert' | 'delete',
   payload: object
 ) {
+  if (!recordId || String(recordId) === 'undefined' || String(recordId) === 'null') {
+    throw new Error(`Data tidak valid: recordId tidak boleh kosong atau "undefined".`)
+  }
+
   // FIX: Prevent "undefined" UUID errors
+  validatePayloadUUIDs(payload)
+  
   const payloadStr = JSON.stringify(payload)
   if (payloadStr.includes('"undefined"')) {
     console.error(`[SYNC ERROR] Payload contains literal "undefined" string:`, payload)
@@ -185,9 +196,16 @@ export function validatePayloadUUIDs(obj: any, path: string = ''): void {
     obj.forEach((item, index) => validatePayloadUUIDs(item, `${path}[${index}]`))
   } else if (typeof obj === 'object') {
     for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === 'string') {
-        if (value === 'undefined') {
-          throw new Error(`Deteksi anomali pada field [${path}${key}]: Nilai berisi string literal "undefined"`)
+      if (value === undefined || value === null) {
+        if (key === 'id' || key.endsWith('_id')) {
+          // Hanya lewati jika memang didesain boleh null (seperti nik_kk dll), tapi secara umum UUID undefined dilarang keras.
+          if (value === undefined) {
+             throw new Error(`Deteksi anomali pada field [${path}${key}]: Nilai tidak boleh undefined (harus string UUID atau null jika diizinkan)`)
+          }
+        }
+      } else if (typeof value === 'string') {
+        if (value === 'undefined' || value === 'null') {
+          throw new Error(`Deteksi anomali pada field [${path}${key}]: Nilai berisi string literal "${value}"`)
         }
         if ((key === 'id' || key.endsWith('_id')) && value.trim() === '') {
           throw new Error(`Deteksi anomali pada field [${path}${key}]: Foreign Key UUID tidak boleh kosong (empty string)`)
