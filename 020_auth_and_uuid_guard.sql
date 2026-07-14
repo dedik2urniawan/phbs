@@ -12,8 +12,8 @@ BEGIN;
 -- =========================================================
 -- 1. DROP FUNGSI SECURITY DEFINER LAMA
 -- =========================================================
-DROP FUNCTION IF EXISTS public.get_my_puskesmas();
-DROP FUNCTION IF EXISTS public.get_my_role();
+DROP FUNCTION IF EXISTS public.get_my_puskesmas() CASCADE;
+DROP FUNCTION IF EXISTS public.get_my_role() CASCADE;
 
 
 -- =========================================================
