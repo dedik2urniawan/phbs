@@ -22,7 +22,7 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
     
     // Jika token refresh hilang/invalid, bersihkan sesi secara paksa agar tidak terjadi loop spam
     if (sessionError && (sessionError.message.includes('refresh_token_not_found') || sessionError.message.includes('Invalid Refresh Token'))) {
-      try { await supabase.auth.signOut() } catch (_) {}
+      try { await supabase.auth.signOut({ scope: 'local' }) } catch (_) {}
       
       // HARD RELOAD: Memaksa PWA versi lama membersihkan memori dan memuat ulang JS bundle dari server!
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {

@@ -139,7 +139,7 @@ export default function SurveyWizard({
   
   // React useEffect for Debounced Server-Side Search
   useEffect(() => {
-    if (!search.trim()) {
+    if (!search.trim() || search.trim().length < 3) {
       setSearchResults(null)
       return
     }
