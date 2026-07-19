@@ -152,10 +152,15 @@ export default function SurveyWizard({
 
     const timer = setTimeout(async () => {
       setIsSearching(true)
+      let orQuery = `nama_kk.ilike.%${search}%`
+      if (/^\d+$/.test(search)) {
+        orQuery = `no_kk.like.${search}%,nik_kk.like.${search}%,nama_kk.ilike.%${search}%`
+      }
+      
       let query = supabase
         .from('households')
-        .select('id, no_kk, nama_kk, puskesmas_id, desa_id, alamat, rt, rw, ref_desa(desa_kel), ref_puskesmas(nama)')
-        .or(`nama_kk.ilike.%${search}%,no_kk.ilike.%${search}%,nik_kk.ilike.%${search}%`)
+        .select('*, ref_desa(desa_kel)')
+        .or(orQuery)
         .order('created_at', { ascending: false })
         .limit(100)
 

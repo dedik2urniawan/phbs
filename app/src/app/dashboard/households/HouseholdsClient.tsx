@@ -96,10 +96,16 @@ export default function HouseholdsClient({
 
     const timer = setTimeout(async () => {
       setIsSearching(true)
-      let query = supabase
-        .from('households')
-        .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))')
-        .or(`nama_kk.ilike.%${search}%,no_kk.ilike.%${search}%,nik_kk.ilike.%${search}%`)
+        let orQuery = `nama_kk.ilike.%${search}%`
+        if (/^\d+$/.test(search)) {
+          // Jika murni angka, cari awalan atau kecocokan persis pada no_kk dan nik_kk untuk menggunakan B-Tree index
+          orQuery = `no_kk.like.${search}%,nik_kk.like.${search}%,nama_kk.ilike.%${search}%`
+        }
+        
+        let query = supabase
+          .from('households')
+          .select('*, ref_desa(desa_kel), ref_puskesmas(nama), surveys(id, kader_phbs(nama_kader))')
+          .or(orQuery)
         .order('created_at', { ascending: false })
         .limit(100)
 
