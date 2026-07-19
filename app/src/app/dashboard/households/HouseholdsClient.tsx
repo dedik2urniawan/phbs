@@ -98,8 +98,8 @@ export default function HouseholdsClient({
       setIsSearching(true)
         let orQuery = `nama_kk.ilike.%${search}%`
         if (/^\d+$/.test(search)) {
-          // Jika murni angka, cari awalan atau kecocokan persis pada no_kk dan nik_kk untuk menggunakan B-Tree index
-          orQuery = `no_kk.like.${search}%,nik_kk.like.${search}%,nama_kk.ilike.%${search}%`
+          // Jika murni angka, HANYA cari di no_kk dan nik_kk agar Index B-Tree bekerja 100% tanpa di-ruined oleh seq scan nama_kk
+          orQuery = `no_kk.like.${search}%,nik_kk.like.${search}%`
         }
         
         let query = supabase

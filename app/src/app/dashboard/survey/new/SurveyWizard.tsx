@@ -154,7 +154,8 @@ export default function SurveyWizard({
       setIsSearching(true)
       let orQuery = `nama_kk.ilike.%${search}%`
       if (/^\d+$/.test(search)) {
-        orQuery = `no_kk.like.${search}%,nik_kk.like.${search}%,nama_kk.ilike.%${search}%`
+        // HANYA cari di no_kk dan nik_kk agar Index B-Tree bekerja 100%
+        orQuery = `no_kk.like.${search}%,nik_kk.like.${search}%`
       }
       
       let query = supabase
