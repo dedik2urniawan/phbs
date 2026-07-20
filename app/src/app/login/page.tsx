@@ -27,6 +27,23 @@ function LoginForm() {
       setError('Email atau password salah.')
       setLoading(false)
     } else {
+      // Pengecekan Jadwal Puskesmas (Gatekeeper)
+      const { data: userData } = await supabase
+        .from('app_users')
+        .select('role, ref_puskesmas(is_active)')
+        .eq('id', (await supabase.auth.getSession()).data.session?.user.id)
+        .single()
+
+      const pkmData = Array.isArray(userData?.ref_puskesmas) ? userData?.ref_puskesmas[0] : userData?.ref_puskesmas
+
+      // Jika bukan superadmin, dan puskesmas dalam status non-aktif (is_active = false)
+      if (userData?.role !== 'superadmin' && pkmData?.is_active === false) {
+        await supabase.auth.signOut()
+        setError('Jadwal survei untuk Puskesmas Anda belum dimulai atau sedang ditutup.')
+        setLoading(false)
+        return
+      }
+
       router.push(next)
       router.refresh()
     }

@@ -52,6 +52,10 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
     menuItems.push({ icon: '👥', label: 'Manajemen User', href: '/dashboard/users' })
   }
 
+  if (isSuperAdmin) {
+    menuItems.push({ icon: '🗓️', label: 'Manajemen Jadwal', href: '/dashboard/schedule' })
+  }
+
   return (
     <div className={`fixed inset-y-0 left-0 transition-all duration-300 bg-gradient-to-b from-emerald-900 to-teal-800 shadow-xl z-50 flex flex-col ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div className="p-4 border-b border-white/10 flex items-center justify-between">
