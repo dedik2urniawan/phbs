@@ -7,7 +7,7 @@ export const metadata = {
 }
 
 export default async function SchedulePage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) {
