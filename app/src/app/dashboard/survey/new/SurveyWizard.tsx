@@ -119,7 +119,11 @@ export default function SurveyWizard({
       // 1. Coba cari di IndexedDB lokal
       const localHh = await offlineDB.households.get(hhId!)
       if (localHh) {
-        const desa = localHh.desa_id ? await offlineDB.ref_desa.get(localHh.desa_id) : null
+        let desaKel = '-'
+        if (navigator.onLine && localHh.desa_id) {
+          const { data: d } = await supabase.from('ref_desa').select('desa_kel').eq('id', localHh.desa_id).maybeSingle()
+          if (d?.desa_kel) desaKel = d.desa_kel
+        }
         const formatted: Household = {
           id: localHh.id,
           no_kk: localHh.no_kk,
@@ -129,7 +133,7 @@ export default function SurveyWizard({
           alamat: localHh.alamat,
           rt: localHh.rt,
           rw: localHh.rw,
-          ref_desa: desa ? { desa_kel: desa.desa_kel } : null,
+          ref_desa: { desa_kel: desaKel },
           ref_puskesmas: appUser.ref_puskesmas
         }
         setHousehold(formatted)
