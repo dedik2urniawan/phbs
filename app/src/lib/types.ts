@@ -14,6 +14,7 @@ export interface RefPuskesmas {
   kode: string
   nama: string
   kecamatan: string
+  is_active?: boolean
 }
 
 export interface RefDesa {

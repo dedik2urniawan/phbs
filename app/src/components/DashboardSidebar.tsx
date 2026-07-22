@@ -9,7 +9,7 @@ import LogoutModal from '@/components/LogoutModal'
 import { useState } from 'react'
 
 interface Props {
-  user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
+  user: any
   isCollapsed: boolean
   onToggle: () => void
 }

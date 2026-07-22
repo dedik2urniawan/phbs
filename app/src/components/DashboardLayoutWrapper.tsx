@@ -11,7 +11,7 @@ export default function DashboardLayoutWrapper({
   user
 }: {
   children: React.ReactNode
-  user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
+  user: any
 }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const router = useRouter()
