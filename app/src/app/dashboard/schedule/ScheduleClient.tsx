@@ -23,15 +23,17 @@ export default function ScheduleClient({ initialData }: { initialData: Puskesmas
   const toggleStatus = async (id: string, currentStatus: boolean) => {
     setIsUpdating(id)
     const newStatus = !currentStatus
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('ref_puskesmas')
       .update({ is_active: newStatus })
       .eq('id', id)
+      .select('id, is_active')
 
-    if (!error) {
+    if (!error && data && data.length > 0) {
       setPuskesmasList(prev => prev.map(p => p.id === id ? { ...p, is_active: newStatus } : p))
     } else {
-      alert('Gagal mengupdate status: ' + error.message)
+      const msg = error ? error.message : 'Perubahan ditolak oleh database (0 rows updated). Pastikan skrip SQL 024 sudah dieksekusi!'
+      alert('Gagal mengupdate status: ' + msg)
     }
     setIsUpdating(null)
   }
@@ -40,15 +42,17 @@ export default function ScheduleClient({ initialData }: { initialData: Puskesmas
     if (!confirm(`Apakah Anda yakin ingin ${status ? 'MENGAKTIFKAN' : 'MENONAKTIFKAN'} jadwal semua Puskesmas secara serentak?`)) return
     
     setBulkUpdating(true)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('ref_puskesmas')
       .update({ is_active: status })
       .neq('nama', 'DINKES')
+      .select('id, is_active')
 
-    if (!error) {
+    if (!error && data && data.length > 0) {
       setPuskesmasList(prev => prev.map(p => p.nama !== 'DINKES' ? { ...p, is_active: status } : p))
     } else {
-      alert('Gagal mengupdate massal: ' + error.message)
+      const msg = error ? error.message : 'Perubahan massal ditolak oleh database. Pastikan skrip SQL 024 sudah dieksekusi!'
+      alert('Gagal mengupdate massal: ' + msg)
     }
     setBulkUpdating(false)
   }

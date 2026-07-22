@@ -106,6 +106,58 @@ export default function SurveyWizard({
     }
   }
 
+  // Fallback: Jika initialHousehold null tetapi URL memiliki parameter household_id (karena baru ditambah offline/pending sync)
+  useEffect(() => {
+    if (household) return
+    if (typeof window === 'undefined') return
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const hhId = urlParams.get('household_id')
+    if (!hhId) return
+
+    async function resolveLocalHousehold() {
+      // 1. Coba cari di IndexedDB lokal
+      const localHh = await offlineDB.households.get(hhId!)
+      if (localHh) {
+        const desa = localHh.desa_id ? await offlineDB.ref_desa.get(localHh.desa_id) : null
+        const formatted: Household = {
+          id: localHh.id,
+          no_kk: localHh.no_kk,
+          nama_kk: localHh.nama_kk,
+          puskesmas_id: localHh.puskesmas_id,
+          desa_id: localHh.desa_id,
+          alamat: localHh.alamat,
+          rt: localHh.rt,
+          rw: localHh.rw,
+          ref_desa: desa ? { desa_kel: desa.desa_kel } : null,
+          ref_puskesmas: appUser.ref_puskesmas
+        }
+        setHousehold(formatted)
+        return
+      }
+
+      // 2. Jika tidak ditemukan di IndexedDB lokal, coba query ke Supabase
+      if (navigator.onLine) {
+        const { data } = await supabase
+          .from('households')
+          .select('*, ref_desa(desa_kel)')
+          .eq('id', hhId!)
+          .maybeSingle()
+
+        if (data) {
+          const formatted: Household = {
+            ...data,
+            ref_desa: Array.isArray(data.ref_desa) ? (data.ref_desa[0] ?? null) : data.ref_desa,
+            ref_puskesmas: Array.isArray(data.ref_puskesmas) ? (data.ref_puskesmas[0] ?? null) : data.ref_puskesmas,
+          }
+          setHousehold(formatted)
+        }
+      }
+    }
+
+    resolveLocalHousehold()
+  }, [household, appUser.ref_puskesmas, supabase])
+
   useEffect(() => {
     async function loadKader() {
       if (typeof window !== 'undefined' && navigator.onLine) {

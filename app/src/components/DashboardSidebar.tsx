@@ -33,6 +33,7 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
   }[user?.role || 'stakeholder']
 
   const isSuperAdmin = user?.role === 'superadmin'
+  const isPkmInactive = !isSuperAdmin && user?.ref_puskesmas?.is_active === false
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
 
   const menuItems = [
@@ -81,7 +82,31 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
 
       <nav className="p-3 flex-1 overflow-y-auto space-y-1">
         {menuItems.map((item) => {
+          const isSurveyOrHousehold = item.href === '/dashboard/households' || item.href === '/dashboard/survey/new'
+          const isDisabled = isPkmInactive && isSurveyOrHousehold
           const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)
+
+          if (isDisabled) {
+            return (
+              <div
+                key={item.href}
+                title={isCollapsed ? `${item.label} (Jadwal Ditutup)` : 'Jadwal survei sedang ditutup'}
+                onClick={() => alert('Kegiatan survei PHBS untuk Puskesmas Anda sedang ditutup sementara oleh Dinas Kesehatan.')}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium opacity-50 cursor-not-allowed bg-black/10 text-white/50 ${
+                  isCollapsed ? 'justify-center' : ''
+                }`}
+              >
+                <span className="text-lg">🔒</span>
+                {!isCollapsed && (
+                  <span className="whitespace-nowrap flex items-center justify-between flex-1">
+                    <span>{item.label}</span>
+                    <span className="text-[10px] bg-red-500/30 text-red-200 px-1.5 py-0.5 rounded font-mono">TUTUP</span>
+                  </span>
+                )}
+              </div>
+            )
+          }
+
           return (
             <Link
               key={item.href}
