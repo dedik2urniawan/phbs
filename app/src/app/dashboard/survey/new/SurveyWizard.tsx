@@ -116,14 +116,9 @@ export default function SurveyWizard({
     if (!hhId) return
 
     async function resolveLocalHousehold() {
-      // 1. Coba cari di IndexedDB lokal
+      // 1. Coba cari di IndexedDB lokal (set INSTANT tanpa menunggu request jaringan)
       const localHh = await offlineDB.households.get(hhId!)
       if (localHh) {
-        let desaKel = '-'
-        if (navigator.onLine && localHh.desa_id) {
-          const { data: d } = await supabase.from('ref_desa').select('desa_kel').eq('id', localHh.desa_id).maybeSingle()
-          if (d?.desa_kel) desaKel = d.desa_kel
-        }
         const formatted: Household = {
           id: localHh.id,
           no_kk: localHh.no_kk,
@@ -133,10 +128,19 @@ export default function SurveyWizard({
           alamat: localHh.alamat,
           rt: localHh.rt,
           rw: localHh.rw,
-          ref_desa: { desa_kel: desaKel },
-          ref_puskesmas: appUser.ref_puskesmas
+          ref_desa: { desa_kel: '-' },
+          ref_puskesmas: appUser?.ref_puskesmas
         }
         setHousehold(formatted)
+
+        // Ambil nama desa_kel secara asinkron tanpa menghambat tampilan UI
+        if (localHh.desa_id && navigator.onLine) {
+          supabase.from('ref_desa').select('desa_kel').eq('id', localHh.desa_id).maybeSingle().then(({ data: d }) => {
+            if (d?.desa_kel) {
+              setHousehold(prev => prev ? { ...prev, ref_desa: { desa_kel: d.desa_kel } } : prev)
+            }
+          })
+        }
         return
       }
 
