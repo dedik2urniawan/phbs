@@ -26,11 +26,12 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
     router.refresh()
   }
 
-  const roleLabel = {
+  const roles: Record<string, string> = {
     superadmin: 'Super Admin',
     admin_puskesmas: 'Admin Puskesmas',
     stakeholder: 'Stakeholder',
-  }[user?.role || 'stakeholder']
+  }
+  const roleLabel = roles[user?.role as string] || 'Stakeholder'
 
   const isSuperAdmin = user?.role === 'superadmin'
   const isPkmInactive = !isSuperAdmin && user?.ref_puskesmas?.is_active === false
