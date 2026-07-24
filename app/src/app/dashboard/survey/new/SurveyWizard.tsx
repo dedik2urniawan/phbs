@@ -510,9 +510,18 @@ export default function SurveyWizard({
         sessionValid = !!session
       }
 
+      const householdRecord = await offlineDB.households.get(household!.id)
+      const isHouseholdPending = householdRecord && householdRecord.sync_status === 'pending'
+      
+      let cleanHousehold: any = null
+      if (isHouseholdPending && householdRecord) {
+        const { sync_status, ...restHh } = householdRecord as any
+        cleanHousehold = restHh
+      }
+
       if (navigator.onLine && sessionValid) {
         const rpcPayload = {
-          p_household: null,
+          p_household: cleanHousehold,
           p_members: members.map(m => {
             const { sync_status, ...rest } = m as any;
             return rest;
@@ -527,6 +536,12 @@ export default function SurveyWizard({
         const { error: rpcErr } = await supabase.rpc('sync_offline_composite', rpcPayload);
 
         if (!rpcErr) {
+          if (isHouseholdPending && householdRecord) {
+            await offlineDB.households.update(householdRecord.id, { sync_status: 'synced' })
+          }
+          for (const m of members) {
+            await offlineDB.family_members.update(m.id, { sync_status: 'synced' })
+          }
           await offlineDB.surveys.update(id, { sync_status: 'synced' })
           for (const artRecord of artRecordsToSave) {
              await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
@@ -537,6 +552,7 @@ export default function SurveyWizard({
             setSubmitting(false); return
           }
           await enqueueCompositeSync({
+             household: cleanHousehold || undefined,
              members: members as any,
              survey: record,
              art_responses: artRecordsToSave
@@ -544,6 +560,7 @@ export default function SurveyWizard({
         }
       } else {
         await enqueueCompositeSync({
+           household: cleanHousehold || undefined,
            members: members as any,
            survey: record,
            art_responses: artRecordsToSave
