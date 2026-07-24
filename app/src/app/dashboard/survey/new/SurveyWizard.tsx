@@ -546,6 +546,11 @@ export default function SurveyWizard({
           for (const artRecord of artRecordsToSave) {
              await offlineDB.survey_art_responses.update(artRecord.id, { sync_status: 'synced' })
           }
+
+          // Bersihkan antrean sync lama di Dexie DB untuk KK ini agar status 'pendingCount' langsung 0
+          try {
+            await offlineDB.sync_queue.filter(q => q.payload.includes(household!.id)).delete()
+          } catch (_) {}
         } else {
           if (rpcErr.code === '23505' || rpcErr.message?.includes('23505')) {
             setError('Survei untuk KK ini di tahun ini sudah ada.')
