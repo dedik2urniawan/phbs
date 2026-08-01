@@ -32,27 +32,46 @@ const getServiceSupabase = () => {
   return _serviceClient
 }
 
-// Helper: fetch with pagination, capped at maxRows, with error resilience
+// Helper: fetch with parallel pagination for ultra-fast loading speed
 async function fetchCapped<T>(query: any, maxRows: number = 200000): Promise<T[]> {
   let allData: T[] = []
   let from = 0
   const limit = 1000
+  const concurrency = 5
 
   while (allData.length < maxRows) {
     try {
-      const { data, error } = await query.range(from, from + limit - 1)
-      if (error) {
-        console.error("[fetchCapped] Query error:", error.message)
-        return allData // Return partial data instead of crashing
+      const promises = []
+      for (let i = 0; i < concurrency; i++) {
+        const batchFrom = from + (i * limit)
+        if (batchFrom >= maxRows) break
+        promises.push(query.range(batchFrom, batchFrom + limit - 1))
       }
-      if (data && data.length > 0) {
-        allData = allData.concat(data)
-        from += limit
+
+      const results = await Promise.all(promises)
+      let shouldStop = false
+
+      for (const res of results) {
+        if (res.error) {
+          console.error("[fetchCapped] Query error:", res.error.message)
+          shouldStop = true
+          break
+        }
+        if (res.data && res.data.length > 0) {
+          allData = allData.concat(res.data)
+          if (res.data.length < limit) {
+            shouldStop = true
+          }
+        } else {
+          shouldStop = true
+        }
       }
-      if (!data || data.length < limit) break
+
+      from += concurrency * limit
+      if (shouldStop) break
     } catch (err) {
       console.error("[fetchCapped] Exception:", err)
-      return allData
+      break
     }
   }
 
@@ -155,17 +174,17 @@ export const getCachedRefData = unstable_cache(
 // REKAP - Surveys with ART responses
 // ==========================================
 export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-rekap-v5-${tahun}-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-rekap-v6-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    let query = supabase.from('surveys').select('*, households!inner(no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(id, desa_kel)), survey_art_responses(*, family_members(nama, nik, hubungan_kk))')
+    let query = supabase.from('surveys').select('*, households!inner(no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(id, desa_kel), ref_puskesmas(nama)), survey_art_responses(*, family_members(nama, nik, hubungan_kk))')
       .eq('tahun', tahun)
       
     if (puskesmasId) {
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchCapped(query, 50000)
+    return await fetchCapped(query, 200000)
   })
 }
 

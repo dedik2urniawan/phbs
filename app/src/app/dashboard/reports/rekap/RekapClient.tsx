@@ -273,8 +273,10 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
     const fmtBoolStr = (val: any) => (val === true ? 'YA' : val === false ? 'TIDAK' : '-')
 
     filteredSurveys.forEach((s, idx) => {
-      const pkmNama = s.households?.ref_puskesmas?.nama || '-'
-      const desaNama = s.households?.ref_desa?.desa_kel || '-'
+      const pkmObj = puskesmasList.find((p: any) => String(p.id) === String(s.households?.puskesmas_id))
+      const desaObj = desaList.find((d: any) => String(d.id) === String(s.households?.desa_id))
+      const pkmNama = s.households?.ref_puskesmas?.nama || pkmObj?.nama || '-'
+      const desaNama = s.households?.ref_desa?.desa_kel || desaObj?.desa_kel || '-'
       const noKk = s.households?.no_kk || '-'
       const nikKk = s.households?.nik_kk || '-'
       const namaKk = s.households?.nama_kk || '-'
