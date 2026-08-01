@@ -48,10 +48,14 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
       synced++
     } catch (err) {
       console.error(`Sync error [${item.table_name}/${item.record_id}]:`, (err as any)?.message || JSON.stringify(err) || err)
-      await offlineDB.sync_queue.update(item.id!, { retries: item.retries + 1 })
+      const nextRetries = item.retries + 1
+      if (nextRetries >= 3) {
+        // Hapus item usang jika sudah 3x gagal agar antrean tidak macet selamanya
+        await offlineDB.sync_queue.delete(item.id!)
+      } else {
+        await offlineDB.sync_queue.update(item.id!, { retries: nextRetries })
+      }
       errors++
-      // Berhenti memproses antrean agar urutan tetap terjaga (Strict Queue Ordering).
-      // Anak tidak akan dikirim jika induknya gagal/menunggu.
       break
     }
   }
@@ -184,7 +188,7 @@ export async function enqueueSync(
  * Hitung pending syncs
  */
 export async function getPendingSyncCount(): Promise<number> {
-  return offlineDB.sync_queue.count()
+  return offlineDB.sync_queue.filter(q => q.retries < 3).count()
 }
 
 /**

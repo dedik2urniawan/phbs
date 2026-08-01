@@ -234,6 +234,127 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
     XLSX.writeFile(wb, `Laporan_PHBS_${selectedTahun}_${new Date().getTime()}.xlsx`)
   }
 
+  const handleExportDetailExcel = () => {
+    const wb = XLSX.utils.book_new()
+    const rows: any[][] = []
+
+    rows.push([
+      'NO',
+      'PUSKESMAS',
+      'DESA / KELURAHAN',
+      'NO KK',
+      'NIK KK',
+      'NAMA KK',
+      'ALAMAT',
+      'RT',
+      'RW',
+      'TANGGAL SURVEI',
+      'KADER SURVEYOR',
+      'STATUS PHBS',
+      'SKOR PHBS',
+      'DENOMINATOR',
+      'NAMA ART',
+      'NIK ART',
+      'HUBUNGAN KK',
+      'JENIS KELAMIN',
+      'PERSALINAN NAKES',
+      'ASI EKSKLUSIF',
+      'MENIMBANG BALITA',
+      'CUCI TANGAN',
+      'DIET SAYUR BUAH',
+      'AKTIVITAS FISIK',
+      'TIDAK MEROKOK',
+      'CEK KESEHATAN',
+      'POSYANDU HADIR',
+      'IBU HAMIL TTD',
+      'REMAJA PUTRI TTD'
+    ])
+
+    const fmtBoolStr = (val: any) => (val === true ? 'YA' : val === false ? 'TIDAK' : '-')
+
+    filteredSurveys.forEach((s, idx) => {
+      const pkmNama = s.households?.ref_puskesmas?.nama || '-'
+      const desaNama = s.households?.ref_desa?.desa_kel || '-'
+      const noKk = s.households?.no_kk || '-'
+      const nikKk = s.households?.nik_kk || '-'
+      const namaKk = s.households?.nama_kk || '-'
+      const alamat = s.households?.alamat || '-'
+      const rt = s.households?.rt || '-'
+      const rw = s.households?.rw || '-'
+      const surveyDate = s.survey_date || '-'
+      const kaderNama = s.kader_phbs?.nama_kader || '-'
+      const statusPhbs = s.is_rt_sehat ? 'SEHAT' : 'TIDAK SEHAT'
+      const skor = s.skor_phbs ?? '-'
+      const denom = s.denominator_phbs ?? '-'
+
+      if (s.survey_art_responses && s.survey_art_responses.length > 0) {
+        s.survey_art_responses.forEach((art: any) => {
+          rows.push([
+            idx + 1,
+            pkmNama,
+            desaNama,
+            noKk,
+            nikKk,
+            namaKk,
+            alamat,
+            rt,
+            rw,
+            surveyDate,
+            kaderNama,
+            statusPhbs,
+            skor,
+            denom,
+            art.family_members?.nama || '-',
+            art.family_members?.nik || '-',
+            art.family_members?.hubungan_kk || '-',
+            art.family_members?.jenis_kelamin || '-',
+            fmtBoolStr(art.i1_persalinan_nakes),
+            fmtBoolStr(art.i2_asi_eksklusif),
+            fmtBoolStr(art.i3_menimbang_balita),
+            fmtBoolStr(art.i5_cuci_tangan),
+            fmtBoolStr(art.i8_makan_sayur_buah),
+            fmtBoolStr(art.i9_aktivitas_fisik),
+            fmtBoolStr(art.i10_tidak_merokok),
+            fmtBoolStr(art.g_cek_kesehatan),
+            fmtBoolStr(art.g_posyandu_hadir),
+            fmtBoolStr(art.g_ibu_hamil_ttd),
+            fmtBoolStr(art.g_remaja_putri_ttd)
+          ])
+        })
+      } else {
+        rows.push([
+          idx + 1,
+          pkmNama,
+          desaNama,
+          noKk,
+          nikKk,
+          namaKk,
+          alamat,
+          rt,
+          rw,
+          surveyDate,
+          kaderNama,
+          statusPhbs,
+          skor,
+          denom,
+          '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'
+        ])
+      }
+    })
+
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [
+      { wch: 5 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 18 },
+      { wch: 22 }, { wch: 25 }, { wch: 6 }, { wch: 6 }, { wch: 14 },
+      { wch: 20 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 22 },
+      { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ]
+    XLSX.utils.book_append_sheet(wb, ws, 'Detail KK dan ART')
+    XLSX.writeFile(wb, `Detail_Survei_KK_ART_${selectedTahun}_${new Date().getTime()}.xlsx`)
+  }
+
   const handlePrintPDF = () => {
     window.print()
   }
@@ -714,13 +835,20 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-gray-800">Laporan PHBS (Siap Unduh)</h3>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={handleExportDetailExcel}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold py-2 px-4 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
+              >
+                <Download size={16} />
+                Unduh Detail KK & ART (Excel)
+              </button>
               <button
                 onClick={handleExportExcel}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
               >
                 <FileText size={16} />
-                Unduh Excel
+                Unduh Ringkasan Excel
               </button>
               <button
                 onClick={handlePrintPDF}

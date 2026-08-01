@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import * as XLSX from 'xlsx'
-import { Upload, Download, Plus, Save, Trash2, CheckCircle, AlertCircle, XCircle, FileSpreadsheet } from 'lucide-react'
+import { Upload, Download, Plus, Save, Trash2, CheckCircle, AlertCircle, XCircle, FileSpreadsheet, Edit2, ShieldAlert, X } from 'lucide-react'
 
 interface Props {
   appUser: any
@@ -57,6 +57,10 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
   const [importLoading, setImportLoading] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; error: number } | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+
+  // Edit Sasaran State (Superadmin Only)
+  const [editingSasaran, setEditingSasaran] = useState<any | null>(null)
+  const [editLoading, setEditLoading] = useState(false)
 
   // --- Computed ---
   const availableDesa = useMemo(() => {
@@ -129,11 +133,37 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
 
   // --- Delete ---
   const handleDelete = async (id: string) => {
+    if (!isSuperAdmin) return
     if (!confirm('Hapus data sasaran KK ini?')) return
     const { error } = await supabase.from('sasaran_kk').delete().eq('id', id)
     if (!error) {
       setSasaranList(prev => prev.filter(s => s.id !== id))
     }
+  }
+
+  const handleUpdateSasaran = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingSasaran || !isSuperAdmin) return
+    setEditLoading(true)
+
+    const payload = {
+      jumlah_kk: parseInt(editingSasaran.jumlah_kk),
+      keterangan: editingSasaran.keterangan || null,
+      updated_at: new Date().toISOString()
+    }
+
+    const { error } = await supabase
+      .from('sasaran_kk')
+      .update(payload)
+      .eq('id', editingSasaran.id)
+
+    if (error) {
+      alert(`Gagal memperbarui sasaran: ${error.message}`)
+    } else {
+      setSasaranList(prev => prev.map(s => s.id === editingSasaran.id ? { ...s, ...payload } : s))
+      setEditingSasaran(null)
+    }
+    setEditLoading(false)
   }
 
   // --- Download Template Excel ---
@@ -339,22 +369,22 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
       {/* ====== TAB INPUT ====== */}
       {activeTab === 'input' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form */}
+          {/* Form / Notice */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span className="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700"><Plus size={14} /></span>
-                Input Sasaran KK
-              </h3>
-              <form onSubmit={handleFormSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Tahun</label>
-                  <select value={formTahun} onChange={e => setFormTahun(Number(e.target.value))}
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
-                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </div>
-                {isSuperAdmin && (
+            {isSuperAdmin ? (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700"><Plus size={14} /></span>
+                  Input Sasaran KK
+                </h3>
+                <form onSubmit={handleFormSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Tahun</label>
+                    <select value={formTahun} onChange={e => setFormTahun(Number(e.target.value))}
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 mb-1">Puskesmas <span className="text-red-500">*</span></label>
                     <select value={formPuskesmas} onChange={e => { setFormPuskesmas(e.target.value); setFormDesa('') }}
@@ -363,43 +393,56 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                       {refPuskesmas.map(p => <option key={p.id} value={p.id}>{p.nama}</option>)}
                     </select>
                   </div>
-                )}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Desa / Kelurahan <span className="text-red-500">*</span></label>
-                  <select value={formDesa} onChange={e => setFormDesa(e.target.value)}
-                    disabled={!formPuskesmas}
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
-                    <option value="">-- Pilih Desa --</option>
-                    {availableDesa.map(d => <option key={d.id} value={d.id}>{d.desa_kel}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Jumlah KK Sasaran <span className="text-red-500">*</span></label>
-                  <input type="number" min="0" value={formJumlah} onChange={e => setFormJumlah(e.target.value)}
-                    placeholder="Contoh: 500"
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Keterangan (opsional)</label>
-                  <input type="text" value={formKeterangan} onChange={e => setFormKeterangan(e.target.value)}
-                    placeholder="Sumber data, dll."
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
-                </div>
-                {formMessage && (
-                  <div className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${
-                    formMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
-                    {formMessage.type === 'success' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                    {formMessage.text}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Desa / Kelurahan <span className="text-red-500">*</span></label>
+                    <select value={formDesa} onChange={e => setFormDesa(e.target.value)}
+                      disabled={!formPuskesmas}
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
+                      <option value="">-- Pilih Desa --</option>
+                      {availableDesa.map(d => <option key={d.id} value={d.id}>{d.desa_kel}</option>)}
+                    </select>
                   </div>
-                )}
-                <button type="submit" disabled={formLoading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
-                  <Save size={14} />
-                  {formLoading ? 'Menyimpan...' : 'Simpan Sasaran KK'}
-                </button>
-              </form>
-            </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Jumlah KK Sasaran <span className="text-red-500">*</span></label>
+                    <input type="number" min="0" value={formJumlah} onChange={e => setFormJumlah(e.target.value)}
+                      placeholder="Contoh: 500"
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Keterangan (opsional)</label>
+                    <input type="text" value={formKeterangan} onChange={e => setFormKeterangan(e.target.value)}
+                      placeholder="Sumber data, dll."
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                  {formMessage && (
+                    <div className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                      formMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                      {formMessage.type === 'success' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                      {formMessage.text}
+                    </div>
+                  )}
+                  <button type="submit" disabled={formLoading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                    <Save size={14} />
+                    {formLoading ? 'Menyimpan...' : 'Simpan Sasaran KK'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="bg-amber-50/80 rounded-2xl border border-amber-200/80 p-6 space-y-3">
+                <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center">
+                  <ShieldAlert size={20} />
+                </div>
+                <h4 className="font-bold text-amber-900 text-base">Hak Akses Sasaran KK</h4>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Untuk menjaga kredibilitas dan konsistensi data denominator KK Kabupaten Malang, penginputan dan pengubahan Sasaran KK hanya dapat dilakukan oleh <strong>PJ Admin Dinas Kesehatan</strong>.
+                </p>
+                <p className="text-[11px] text-amber-700 italic">
+                  Apabila terdapat penyesuaian jumlah sasaran KK di wilayah Puskesmas Anda, mohon mengajukan permohonan ke Tim Kerja PHBS Dinkes Kab. Malang.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Table */}
@@ -432,10 +475,22 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <button onClick={() => handleDelete(s.id)}
-                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                            <Trash2 size={14} />
-                          </button>
+                          {isSuperAdmin ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => setEditingSasaran({ ...s })}
+                                className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                                title="Edit Sasaran">
+                                <Edit2 size={14} />
+                              </button>
+                              <button onClick={() => handleDelete(s.id)}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Hapus">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 font-medium">Terproteksi</span>
+                          )}
                         </td>
                       </tr>
                     )) : (
@@ -566,6 +621,65 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Edit Sasaran (Superadmin Only) */}
+      {editingSasaran && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-bold text-gray-800 text-base">Edit Sasaran KK</h3>
+              <button onClick={() => setEditingSasaran(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateSasaran} className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500">Desa / Kelurahan</p>
+                <p className="text-sm font-bold text-gray-800">{editingSasaran.ref_desa?.desa_kel || '-'}</p>
+                <p className="text-[11px] text-gray-400">{editingSasaran.ref_puskesmas?.nama} ({editingSasaran.tahun})</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Jumlah KK Sasaran</label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={editingSasaran.jumlah_kk}
+                  onChange={e => setEditingSasaran({ ...editingSasaran, jumlah_kk: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-900 focus:ring-2 ring-emerald-500 outline-none font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Keterangan (opsional)</label>
+                <input
+                  type="text"
+                  value={editingSasaran.keterangan || ''}
+                  onChange={e => setEditingSasaran({ ...editingSasaran, keterangan: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-900 focus:ring-2 ring-emerald-500 outline-none"
+                  placeholder="Keterangan perubahan..."
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSasaran(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="px-5 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Save size={16} />
+                  {editLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

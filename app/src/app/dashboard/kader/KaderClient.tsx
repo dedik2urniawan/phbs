@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Save, Trash2, X } from 'lucide-react'
+import { Plus, Save, Trash2, X, Edit2 } from 'lucide-react'
 
 interface Props {
   appUser: any
@@ -28,6 +28,8 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
   const [formPuskesmas, setFormPuskesmas] = useState<string>(isSuperAdmin ? '' : String(appUser.puskesmas_id))
   const [formDesa, setFormDesa] = useState<string>('')
   const [kaderNames, setKaderNames] = useState<string[]>([''])
+  const [editingKader, setEditingKader] = useState<{ id: string; nama_kader: string } | null>(null)
+  const [editSubmitting, setEditSubmitting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null)
 
@@ -108,6 +110,25 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
     } else {
       alert('Gagal menghapus: ' + error.message)
     }
+  }
+
+  const handleUpdateKader = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingKader || !editingKader.nama_kader.trim()) return
+    setEditSubmitting(true)
+    const newName = editingKader.nama_kader.trim().toUpperCase()
+    const { error } = await supabase
+      .from('kader_phbs')
+      .update({ nama_kader: newName })
+      .eq('id', editingKader.id)
+
+    if (error) {
+      alert('Gagal mengedit nama kader: ' + error.message)
+    } else {
+      setKaderList(prev => prev.map(k => k.id === editingKader.id ? { ...k, nama_kader: newName } : k))
+      setEditingKader(null)
+    }
+    setEditSubmitting(false)
   }
 
   return (
@@ -279,13 +300,22 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
                     <td className="px-6 py-4 text-gray-600">{kader.ref_desa?.desa_kel || '-'}</td>
                     {isSuperAdmin && <td className="px-6 py-4 text-gray-600">{kader.ref_puskesmas?.nama || '-'}</td>}
                     <td className="px-6 py-4 text-center">
-                      <button 
-                        onClick={() => handleDelete(kader.id, kader.nama_kader)}
-                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Hapus"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button 
+                          onClick={() => setEditingKader({ id: kader.id, nama_kader: kader.nama_kader })}
+                          className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Edit Nama Kader"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(kader.id, kader.nama_kader)}
+                          className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -294,6 +324,52 @@ export default function KaderClient({ appUser, refPuskesmas, refDesa, initialKad
           </table>
         </div>
       </div>
+      {/* Modal Edit Nama Kader */}
+      {editingKader && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-bold text-gray-800 text-base">Edit Nama Kader</h3>
+              <button onClick={() => setEditingKader(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateKader} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Nama Lengkap Kader</label>
+                <input
+                  type="text"
+                  required
+                  value={editingKader.nama_kader}
+                  onChange={e => setEditingKader({ ...editingKader, nama_kader: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:ring-2 ring-emerald-500 outline-none"
+                  placeholder="Nama kader..."
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  * Catatan: Mengubah nama kader di sini akan otomatis memperbarui nama surveyor pada seluruh data survei yang pernah diisi oleh kader ini.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingKader(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="px-5 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Save size={16} />
+                  {editSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
