@@ -33,7 +33,7 @@ const getServiceSupabase = () => {
 }
 
 // Helper: fetch with pagination, capped at maxRows, with error resilience
-async function fetchCapped<T>(query: any, maxRows: number = 2000): Promise<T[]> {
+async function fetchCapped<T>(query: any, maxRows: number = 200000): Promise<T[]> {
   let allData: T[] = []
   let from = 0
   const limit = 1000
@@ -63,8 +63,9 @@ async function fetchCapped<T>(query: any, maxRows: number = 2000): Promise<T[]> 
 // DASHBOARD - Household COUNTS only (lightweight!)
 // Returns { total: number, byPuskesmas: Record<string, number>, byDesa: Record<string, number> }
 // ==========================================
-export const getCachedHouseholdCounts = unstable_cache(
-  async (puskesmasId?: string | null) => {
+export const getCachedHouseholdCounts = async (puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-hh-counts-v6-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     
     // Get total count — head:true means no data, just count
@@ -79,7 +80,7 @@ export const getCachedHouseholdCounts = unstable_cache(
     if (puskesmasId) {
       idsQuery = idsQuery.eq('puskesmas_id', puskesmasId)
     }
-    const idsData = await fetchCapped(idsQuery as any, 50000) as { puskesmas_id: string; desa_id: string }[]
+    const idsData = await fetchCapped(idsQuery as any, 200000) as { puskesmas_id: string; desa_id: string }[]
     
     // Aggregate in-memory (tiny objects)
     const byPuskesmas: Record<string, number> = {}
@@ -94,22 +95,16 @@ export const getCachedHouseholdCounts = unstable_cache(
       byPuskesmas,
       byDesa
     }
-  },
-  ['dashboard-hh-counts-v4'],
-  { revalidate: 28800 } // Sinkronisasi setiap 8 jam (28800 detik)
-)
+  })
+}
 
 // ==========================================
 // DASHBOARD - Surveys (only necessary columns, capped)
 // ==========================================
 export const getCachedSurveys = async (puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-surveys-v5-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-surveys-v6-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    // Select ONLY the columns DashboardClient actually needs
-    // Scorecards: household_id, tahun, skor_phbs, denominator_phbs, i1..i10, i11..i17
-    // Charts: households.puskesmas_id, households.desa_id, households.ref_desa, households.ref_puskesmas
-    // Kader: kader_id, kader_phbs.nama_kader
     let query = supabase
       .from('surveys')
       .select('id, household_id, tahun, skor_phbs, denominator_phbs, kader_id, i1_persalinan_nakes, i2_asi_eksklusif, i3_menimbang_balita, i4_air_bersih, i5_cuci_tangan, i6_jamban_sehat, i7_psn, i8_makan_sayur_buah, i9_aktivitas_fisik, i10_tidak_merokok, i11_cek_kesehatan, i12_kunjungan_posyandu, i14_ibu_hamil, i15_ibu_hamil_ttd, i16_remaja_putri, i17_remaja_putri_ttd, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama)), kader_phbs(nama_kader)')
@@ -118,25 +113,24 @@ export const getCachedSurveys = async (puskesmasId?: string | null) => {
       query = query.eq('households.puskesmas_id', puskesmasId)
     }
     
-    return await fetchCapped(query, 50000) // Ditingkatkan ke 50.000 (RAM Railway mampu menampung)
+    return await fetchCapped(query, 200000)
   })
 }
 
 // ==========================================
 // DASHBOARD - Sasaran KK (always small)
 // ==========================================
-export const getCachedSasaran = unstable_cache(
-  async (puskesmasId?: string | null) => {
+export const getCachedSasaran = async (puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-sasaran-v6-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     let query = supabase.from('sasaran_kk').select('*')
     if (puskesmasId) {
       query = query.eq('puskesmas_id', puskesmasId)
     }
-    return await fetchCapped(query, 500)
-  },
-  ['dashboard-sasaran-v4'],
-  { revalidate: 28800 } // Target sasaran tahunan, cache 24 jam
-)
+    return await fetchCapped(query, 5000)
+  })
+}
 
 // ==========================================
 // REF DATA - Puskesmas & Desa (always small, cache 1 hour)
