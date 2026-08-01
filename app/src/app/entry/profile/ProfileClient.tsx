@@ -14,8 +14,12 @@ export default function ProfileClient({ appUser, totalKK, totalSurvey }: Props) 
   const supabase = createClient()
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login?mode=pwa')
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+    window.location.href = '/login?mode=pwa'
   }
 
   const isSuperAdmin = appUser?.role === 'superadmin'

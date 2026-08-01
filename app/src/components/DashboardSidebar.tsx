@@ -21,9 +21,12 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login?mode=admin')
-    router.refresh()
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+    window.location.href = '/login?mode=admin'
   }
 
   const roles: Record<string, string> = {
