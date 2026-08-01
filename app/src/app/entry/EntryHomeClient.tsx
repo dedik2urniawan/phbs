@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import SyncStatusBar from '@/components/SyncStatusBar'
 import SopModal from '@/components/SopModal'
+import DLQBanner from '@/components/DLQBanner'
 
 interface Household {
   id: string; no_kk: string; nama_kk: string; created_at: string
@@ -73,6 +74,9 @@ export default function EntryHomeClient({ appUser, recentHouseholds, totalKK, su
 
       {/* Content — overlap dengan header */}
       <div className="px-4 -mt-4">
+        {/* DLQ Banner — tampil hanya jika ada data gagal sync */}
+        <DLQBanner />
+
         {/* Quick Actions */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Aksi Cepat</p>
