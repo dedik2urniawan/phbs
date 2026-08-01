@@ -32,45 +32,45 @@ const getServiceSupabase = () => {
   return _serviceClient
 }
 
-// Helper: fetch with parallel pagination for ultra-fast loading speed
-async function fetchCapped<T>(query: any, maxRows: number = 200000): Promise<T[]> {
+// ==========================================
+// Helper: SAFE sequential pagination
+//
+// PENTING: Supabase PostgREST query builder adalah MUTABLE.
+// Memanggil .range() berkali-kali pada objek yang SAMA akan
+// menyebabkan semua request mengeksekusi range terakhir saja,
+// sehingga data menjadi kosong atau duplikat.
+// Solusi: tetap sequential, tapi efisien dengan page-size 1000.
+// ==========================================
+async function fetchCapped<T>(
+  queryBuilder: any,
+  maxRows: number = 200000
+): Promise<T[]> {
   let allData: T[] = []
   let from = 0
   const limit = 1000
-  const concurrency = 5
 
   while (allData.length < maxRows) {
     try {
-      const promises = []
-      for (let i = 0; i < concurrency; i++) {
-        const batchFrom = from + (i * limit)
-        if (batchFrom >= maxRows) break
-        promises.push(query.range(batchFrom, batchFrom + limit - 1))
+      // KRITIS: Setiap panggilan .range() pada Supabase builder mengembalikan
+      // INSTANCE BARU (karena itu aman untuk sequential, tapi TIDAK untuk parallel
+      // karena semua batch akan menggunakan .range() pada builder yang sama).
+      const { data, error } = await queryBuilder.range(from, from + limit - 1)
+
+      if (error) {
+        console.error('[fetchCapped] Query error:', error.message)
+        break
       }
 
-      const results = await Promise.all(promises)
-      let shouldStop = false
+      if (!data || data.length === 0) break
 
-      for (const res of results) {
-        if (res.error) {
-          console.error("[fetchCapped] Query error:", res.error.message)
-          shouldStop = true
-          break
-        }
-        if (res.data && res.data.length > 0) {
-          allData = allData.concat(res.data)
-          if (res.data.length < limit) {
-            shouldStop = true
-          }
-        } else {
-          shouldStop = true
-        }
-      }
+      allData = allData.concat(data)
 
-      from += concurrency * limit
-      if (shouldStop) break
+      // Jika data yang dikembalikan < limit, artinya sudah halaman terakhir
+      if (data.length < limit) break
+
+      from += limit
     } catch (err) {
-      console.error("[fetchCapped] Exception:", err)
+      console.error('[fetchCapped] Exception:', err)
       break
     }
   }
@@ -83,7 +83,7 @@ async function fetchCapped<T>(query: any, maxRows: number = 200000): Promise<T[]
 // Returns { total: number, byPuskesmas: Record<string, number>, byDesa: Record<string, number> }
 // ==========================================
 export const getCachedHouseholdCounts = async (puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-hh-counts-v6-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-hh-counts-v7-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     
@@ -118,21 +118,22 @@ export const getCachedHouseholdCounts = async (puskesmasId?: string | null) => {
 }
 
 // ==========================================
-// DASHBOARD - Surveys (only necessary columns, capped)
+// DASHBOARD - Surveys (only necessary columns)
 // ==========================================
 export const getCachedSurveys = async (puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-surveys-v6-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-surveys-v7-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    let query = supabase
+    const query = supabase
       .from('surveys')
       .select('id, household_id, tahun, skor_phbs, denominator_phbs, kader_id, i1_persalinan_nakes, i2_asi_eksklusif, i3_menimbang_balita, i4_air_bersih, i5_cuci_tangan, i6_jamban_sehat, i7_psn, i8_makan_sayur_buah, i9_aktivitas_fisik, i10_tidak_merokok, i11_cek_kesehatan, i12_kunjungan_posyandu, i14_ibu_hamil, i15_ibu_hamil_ttd, i16_remaja_putri, i17_remaja_putri_ttd, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama)), kader_phbs(nama_kader)')
+
+    // Filter pushed to DB level (not post-fetch) to reduce payload size
+    const finalQuery = puskesmasId
+      ? query.eq('households.puskesmas_id', puskesmasId)
+      : query
     
-    if (puskesmasId) {
-      query = query.eq('households.puskesmas_id', puskesmasId)
-    }
-    
-    return await fetchCapped(query, 200000)
+    return await fetchCapped(finalQuery, 200000)
   })
 }
 
@@ -140,19 +141,17 @@ export const getCachedSurveys = async (puskesmasId?: string | null) => {
 // DASHBOARD - Sasaran KK (always small)
 // ==========================================
 export const getCachedSasaran = async (puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-sasaran-v6-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-sasaran-v7-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    let query = supabase.from('sasaran_kk').select('*')
-    if (puskesmasId) {
-      query = query.eq('puskesmas_id', puskesmasId)
-    }
-    return await fetchCapped(query, 5000)
+    const query = supabase.from('sasaran_kk').select('*')
+    const finalQuery = puskesmasId ? query.eq('puskesmas_id', puskesmasId) : query
+    return await fetchCapped(finalQuery, 5000)
   })
 }
 
 // ==========================================
-// REF DATA - Puskesmas & Desa (always small, cache 1 hour)
+// REF DATA - Puskesmas & Desa (always small, cache 8 hours)
 // ==========================================
 export const getCachedRefData = unstable_cache(
   async () => {
@@ -166,25 +165,25 @@ export const getCachedRefData = unstable_cache(
       refDesa: desaRes.data || []
     }
   },
-  ['dashboard-ref-v4'],
-  { revalidate: 28800 } // Referensi data tidak sering berubah, cache 24 jam
+  ['dashboard-ref-v5'],
+  { revalidate: 28800 }
 )
 
 // ==========================================
 // REKAP - Surveys with ART responses
 // ==========================================
 export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-rekap-v6-${tahun}-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-rekap-v7-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    let query = supabase.from('surveys').select('*, households!inner(no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(id, desa_kel), ref_puskesmas(nama)), survey_art_responses(*, family_members(nama, nik, hubungan_kk))')
+    const query = supabase.from('surveys').select('*, households!inner(no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(id, desa_kel), ref_puskesmas(nama)), survey_art_responses(*, family_members(nama, nik, hubungan_kk))')
       .eq('tahun', tahun)
-      
-    if (puskesmasId) {
-      query = query.eq('households.puskesmas_id', puskesmasId)
-    }
+
+    const finalQuery = puskesmasId
+      ? query.eq('households.puskesmas_id', puskesmasId)
+      : query
     
-    return await fetchCapped(query, 200000)
+    return await fetchCapped(finalQuery, 200000)
   })
 }
 
@@ -192,53 +191,49 @@ export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string 
 // ANALYSIS - Surveys for analysis page
 // ==========================================
 export const getCachedAnalysisSurveys = async (tahun: number, puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-analysis-v5-${tahun}-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-analysis-v7-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    let query = supabase.from('surveys').select('*, households!inner(nama_kk, puskesmas_id, desa_id, ref_desa(desa_kel), ref_puskesmas(nama))')
+    const query = supabase.from('surveys').select('*, households!inner(nama_kk, puskesmas_id, desa_id, ref_desa(desa_kel), ref_puskesmas(nama))')
       .eq('tahun', tahun)
-      
-    if (puskesmasId) {
-      query = query.eq('households.puskesmas_id', puskesmasId)
-    }
+
+    const finalQuery = puskesmasId
+      ? query.eq('households.puskesmas_id', puskesmasId)
+      : query
     
-    return await fetchCapped(query, 50000)
+    return await fetchCapped(finalQuery, 200000)
   })
 }
 
 // ==========================================
 // SASARAN by Tahun (for rekap/analysis pages)
 // ==========================================
-export const getCachedSasaranByTahun = unstable_cache(
-  async (tahun: number, puskesmasId?: string | null) => {
+export const getCachedSasaranByTahun = async (tahun: number, puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-sasaran-tahun-v7-${tahun}-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    let query = supabase.from('sasaran_kk').select('*').eq('tahun', tahun)
-    if (puskesmasId) {
-      query = query.eq('puskesmas_id', puskesmasId)
-    }
-    return await fetchCapped(query, 500)
-  },
-  ['dashboard-sasaran-by-tahun-v4'],
-  { revalidate: 28800 } // Diubah ke 8 jam
-)
+    const query = supabase.from('sasaran_kk').select('*').eq('tahun', tahun)
+    const finalQuery = puskesmasId ? query.eq('puskesmas_id', puskesmasId) : query
+    return await fetchCapped(finalQuery, 5000)
+  })
+}
 
 // ==========================================
 // DATA RESPONDEN (Server-side Cached)
 // ==========================================
 export const getCachedRespondentStats = async (tahun: number, puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-respondent-data-v1-${tahun}-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-respondent-data-v7-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     
-    // We join family_members -> households -> surveys to filter by tahun, puskesmas
-    let query = supabase.from('family_members').select('jenis_kelamin, pendidikan, pekerjaan, households!inner(puskesmas_id, desa_id, surveys!inner(tahun))')
+    const query = supabase.from('family_members').select('jenis_kelamin, pendidikan, pekerjaan, households!inner(puskesmas_id, desa_id, surveys!inner(tahun))')
       .eq('households.surveys.tahun', tahun)
-      
-    if (puskesmasId && puskesmasId !== 'ALL') {
-      query = query.eq('households.puskesmas_id', puskesmasId)
-    }
 
-    const data = await fetchCapped(query as any, 100000) as any[]
+    const finalQuery = (puskesmasId && puskesmasId !== 'ALL')
+      ? query.eq('households.puskesmas_id', puskesmasId)
+      : query
+
+    const data = await fetchCapped(finalQuery as any, 200000) as any[]
     
     // Format data to match what the client expects (flattening households)
     return data.map(d => ({
