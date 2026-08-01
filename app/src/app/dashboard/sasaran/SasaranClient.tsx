@@ -503,9 +503,11 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                   </tbody>
                 </table>
               </div>
-            </div>
-          </div>
-        </d      {/* ====== TAB IMPORT ====== */}
+        </div>
+      </div>
+      )}
+
+      {/* ====== TAB IMPORT ====== */}
       {activeTab === 'import' && (
         !isSuperAdmin ? (
           <div className="bg-amber-50/80 rounded-2xl border border-amber-200/80 p-8 space-y-4 max-w-2xl mx-auto my-6 text-center shadow-sm">
