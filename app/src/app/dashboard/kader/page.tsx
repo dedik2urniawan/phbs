@@ -45,7 +45,7 @@ export default async function KaderPage() {
   }
 
   // Prevent crashing by fetching too many rows without pagination
-  const { data: kaderData } = await kaderQuery.limit(500)
+  const { data: kaderData } = await kaderQuery.limit(1000)
 
   return (
     <div className="p-8 pb-20">
