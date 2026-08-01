@@ -505,123 +505,138 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ====== TAB IMPORT ====== */}
+        </d      {/* ====== TAB IMPORT ====== */}
       {activeTab === 'import' && (
-        <div className="space-y-6">
-          {/* Step 1: Download Template */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm">1</div>
-              <h3 className="font-bold text-gray-800">Download Template Excel</h3>
+        !isSuperAdmin ? (
+          <div className="bg-amber-50/80 rounded-2xl border border-amber-200/80 p-8 space-y-4 max-w-2xl mx-auto my-6 text-center shadow-sm">
+            <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <ShieldAlert size={28} />
             </div>
-            <p className="text-sm text-gray-500 mb-4">
-              Download template Excel di bawah ini, isi data sasaran KK sesuai format, lalu upload kembali di Langkah 2.
-              Kolom: <code className="bg-gray-100 px-1 rounded text-xs">nama_puskesmas</code>, <code className="bg-gray-100 px-1 rounded text-xs">nama_desa</code>, <code className="bg-gray-100 px-1 rounded text-xs">jumlah_kk</code>, <code className="bg-gray-100 px-1 rounded text-xs">tahun</code>
+            <h4 className="font-bold text-amber-900 text-lg">Fitur Import Sasaran Terproteksi</h4>
+            <p className="text-sm text-amber-800 leading-relaxed">
+              Untuk menjaga kredibilitas dan konsistensi data denominator KK Kabupaten Malang, fitur <strong>Import Sasaran KK via Excel</strong> hanya dapat dilakukan oleh <strong>PJ Admin Dinas Kesehatan</strong>.
             </p>
-            <button onClick={handleDownloadTemplate}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm">
-              <FileSpreadsheet size={16} />
-              Download Template Excel
-            </button>
-          </div>
-
-          {/* Step 2: Upload */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600 font-bold text-sm">2</div>
-              <h3 className="font-bold text-gray-800">Upload File Excel</h3>
-            </div>
-            <div
-              className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
-                isDragOver ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300 hover:bg-gray-50'
-              }`}
-              onDragOver={e => { e.preventDefault(); setIsDragOver(true) }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => document.getElementById('excel-upload')?.click()}
-            >
-              <Upload className="mx-auto mb-3 text-gray-400" size={36} />
-              <p className="text-gray-600 font-medium">Drag & drop file Excel di sini</p>
-              <p className="text-gray-400 text-sm mt-1">atau klik untuk memilih file</p>
-              <p className="text-gray-300 text-xs mt-2">.xlsx, .xls</p>
-              <input id="excel-upload" type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
+            <div className="pt-2 border-t border-amber-200/60">
+              <p className="text-xs text-amber-700 italic">
+                Apabila terdapat penyesuaian data sasaran KK dalam jumlah besar di wilayah Puskesmas Anda, mohon mengajukan file ke Tim Kerja PHBS Dinkes Kab. Malang untuk dilakukan import terpusat.
+              </p>
             </div>
           </div>
-
-          {/* Step 3: Verification Preview */}
-          {importRows.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 font-bold text-sm">3</div>
-                  <h3 className="font-bold text-gray-800">Verifikasi Data ({importRows.length} baris)</h3>
-                </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="flex items-center gap-1 text-emerald-600 font-semibold">
-                    <CheckCircle size={12} /> {validCount} valid
-                  </span>
-                  <span className="flex items-center gap-1 text-red-500 font-semibold">
-                    <XCircle size={12} /> {errorCount} error
-                  </span>
-                </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Step 1: Download Template */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm">1</div>
+                <h3 className="font-bold text-gray-800">Download Template Excel</h3>
               </div>
-              <div className="overflow-x-auto max-h-64">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr className="text-gray-500 uppercase tracking-wider border-b">
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Puskesmas</th>
-                      <th className="px-3 py-2">Desa</th>
-                      <th className="px-3 py-2 text-center">Jumlah KK</th>
-                      <th className="px-3 py-2 text-center">Tahun</th>
-                      <th className="px-3 py-2">Keterangan</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {importRows.map((row, idx) => (
-                      <tr key={idx} className={row.status === 'error' ? 'bg-red-50' : 'bg-white'}>
-                        <td className="px-3 py-2">
-                          {row.status === 'valid'
-                            ? <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle size={12} /> Valid</span>
-                            : <span className="inline-flex items-center gap-1 text-red-500"><XCircle size={12} /> Error</span>
-                          }
-                        </td>
-                        <td className="px-3 py-2 font-medium">{row.nama_puskesmas}</td>
-                        <td className="px-3 py-2">{row.nama_desa}</td>
-                        <td className="px-3 py-2 text-center font-bold">{row.jumlah_kk.toLocaleString('id')}</td>
-                        <td className="px-3 py-2 text-center">{row.tahun}</td>
-                        <td className="px-3 py-2 text-red-400 italic">{row.message}</td>
+              <p className="text-sm text-gray-500 mb-4">
+                Download template Excel di bawah ini, isi data sasaran KK sesuai format, lalu upload kembali di Langkah 2.
+                Kolom: <code className="bg-gray-100 px-1 rounded text-xs">nama_puskesmas</code>, <code className="bg-gray-100 px-1 rounded text-xs">nama_desa</code>, <code className="bg-gray-100 px-1 rounded text-xs">jumlah_kk</code>, <code className="bg-gray-100 px-1 rounded text-xs">tahun</code>
+              </p>
+              <button onClick={handleDownloadTemplate}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm">
+                <FileSpreadsheet size={16} />
+                Download Template Excel
+              </button>
+            </div>
+
+            {/* Step 2: Upload */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600 font-bold text-sm">2</div>
+                <h3 className="font-bold text-gray-800">Upload File Excel</h3>
+              </div>
+              <div
+                className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
+                  isDragOver ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300 hover:bg-gray-50'
+                }`}
+                onDragOver={e => { e.preventDefault(); setIsDragOver(true) }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById('excel-upload')?.click()}
+              >
+                <Upload className="mx-auto mb-3 text-gray-400" size={36} />
+                <p className="text-gray-600 font-medium">Drag & drop file Excel di sini</p>
+                <p className="text-gray-400 text-sm mt-1">atau klik untuk memilih file</p>
+                <p className="text-gray-300 text-xs mt-2">.xlsx, .xls</p>
+                <input id="excel-upload" type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
+              </div>
+            </div>
+
+            {/* Step 3: Verification Preview */}
+            {importRows.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 font-bold text-sm">3</div>
+                    <h3 className="font-bold text-gray-800">Verifikasi Data ({importRows.length} baris)</h3>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                      <CheckCircle size={12} /> {validCount} valid
+                    </span>
+                    <span className="flex items-center gap-1 text-red-500 font-semibold">
+                      <XCircle size={12} /> {errorCount} error
+                    </span>
+                  </div>
+                </div>
+                <div className="overflow-x-auto max-h-64">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr className="text-gray-500 uppercase tracking-wider border-b">
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Puskesmas</th>
+                        <th className="px-3 py-2">Desa</th>
+                        <th className="px-3 py-2 text-center">Jumlah KK</th>
+                        <th className="px-3 py-2 text-center">Tahun</th>
+                        <th className="px-3 py-2">Keterangan</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {importResult && (
-                <div className={`mx-4 my-3 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
-                  importResult.error === 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
-                }`}>
-                  <CheckCircle size={16} />
-                  Import selesai: {importResult.success} berhasil, {importResult.error} gagal.
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {importRows.map((row, idx) => (
+                        <tr key={idx} className={row.status === 'error' ? 'bg-red-50' : 'bg-white'}>
+                          <td className="px-3 py-2">
+                            {row.status === 'valid'
+                              ? <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle size={12} /> Valid</span>
+                              : <span className="inline-flex items-center gap-1 text-red-500"><XCircle size={12} /> Error</span>
+                            }
+                          </td>
+                          <td className="px-3 py-2 font-medium">{row.nama_puskesmas}</td>
+                          <td className="px-3 py-2">{row.nama_desa}</td>
+                          <td className="px-3 py-2 text-center font-bold">{row.jumlah_kk.toLocaleString('id')}</td>
+                          <td className="px-3 py-2 text-center">{row.tahun}</td>
+                          <td className="px-3 py-2 text-red-400 italic">{row.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
 
-              <div className="p-4 border-t border-gray-100 flex justify-end">
-                <button
-                  onClick={handleImport}
-                  disabled={importLoading || validCount === 0}
-                  className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm"
-                >
-                  <Download size={14} />
-                  {importLoading ? 'Mengimpor...' : `Import ${validCount} Baris Valid`}
-                </button>
+                {importResult && (
+                  <div className={`mx-4 my-3 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
+                    importResult.error === 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    <CheckCircle size={16} />
+                    Import selesai: {importResult.success} berhasil, {importResult.error} gagal.
+                  </div>
+                )}
+
+                <div className="p-4 border-t border-gray-100 flex justify-end">
+                  <button
+                    onClick={handleImport}
+                    disabled={importLoading || validCount === 0}
+                    className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    <Download size={14} />
+                    {importLoading ? 'Mengimpor...' : `Import ${validCount} Baris Valid`}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )
+      )}/div>
       )}
 
       {/* Modal Edit Sasaran (Superadmin Only) */}
