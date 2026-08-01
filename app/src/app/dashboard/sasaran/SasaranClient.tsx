@@ -503,9 +503,11 @@ export default function SasaranClient({ appUser, refPuskesmas, refDesa, initialS
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
         </div>
-      </div>
       )}
+
 
       {/* ====== TAB IMPORT ====== */}
       {activeTab === 'import' && (
