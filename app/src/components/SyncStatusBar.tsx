@@ -3,7 +3,23 @@
 import { useSyncStatus } from '@/hooks/useSyncStatus'
 
 export default function SyncStatusBar() {
-  const { isOnline, pendingCount, isSyncing, lastSync, triggerSync } = useSyncStatus()
+  const { isOnline, pendingCount, deadLetterCount, isSyncing, lastSync, triggerSync, retryDLQ } = useSyncStatus()
+
+  // Jika ada dead letter, tampilkan peringatan khusus (prioritas tertinggi)
+  if (deadLetterCount > 0 && isOnline && !isSyncing) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+        <span>{deadLetterCount} data gagal sync</span>
+        <button
+          onClick={retryDLQ}
+          className="underline hover:no-underline ml-1 font-semibold"
+        >
+          Coba Ulang
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${

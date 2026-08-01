@@ -33,9 +33,13 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
     return { synced: 0, errors: 0 }
   }
 
+  // Ambil semua item yang masih dalam batas retry aktif (< MAX_RETRIES)
+  // Item dengan retries >= MAX_RETRIES dianggap "dead letter" — dilewati tapi TIDAK dihapus
+  // sehingga data survei kader tidak pernah hilang dari antrian.
+  const MAX_RETRIES = 5
   const queue = await offlineDB.sync_queue
     .orderBy('created_at')
-    .filter(q => q.retries < 3)
+    .filter(q => q.retries < MAX_RETRIES)
     .toArray()
 
   let synced = 0
@@ -47,16 +51,22 @@ export async function syncToServer(): Promise<{ synced: number; errors: number }
       await offlineDB.sync_queue.delete(item.id!)
       synced++
     } catch (err) {
-      console.error(`Sync error [${item.table_name}/${item.record_id}]:`, (err as any)?.message || JSON.stringify(err) || err)
+      const errMsg = (err as any)?.message || JSON.stringify(err) || String(err)
+      console.error(`[SYNC] Error item [${item.table_name}/${item.record_id}] (retry ${item.retries + 1}/${MAX_RETRIES}):`, errMsg)
+
       const nextRetries = item.retries + 1
-      if (nextRetries >= 3) {
-        // Hapus item usang jika sudah 3x gagal agar antrean tidak macet selamanya
-        await offlineDB.sync_queue.delete(item.id!)
-      } else {
-        await offlineDB.sync_queue.update(item.id!, { retries: nextRetries })
-      }
+      // PERBAIKAN 1: Jangan hapus item meski sudah max retry.
+      // Tandai dengan retries tinggi → akan dilewati di siklus berikutnya (Dead Letter Queue).
+      // Data kader TIDAK PERNAH hilang dari IndexedDB lokal.
+      await offlineDB.sync_queue.update(item.id!, { retries: nextRetries })
       errors++
-      break
+
+      // PERBAIKAN 2: Jangan break — lanjutkan item berikutnya.
+      // Kegagalan satu item tidak boleh menghentikan seluruh antrian sync.
+      // (Hanya berhenti jika koneksi benar-benar terputus)
+      if (!navigator.onLine) break
+      // Jeda singkat sebelum item berikutnya agar tidak spam server saat error beruntun
+      await new Promise(resolve => setTimeout(resolve, 200))
     }
   }
 
@@ -187,8 +197,31 @@ export async function enqueueSync(
 /**
  * Hitung pending syncs
  */
+/**
+ * Hitung item yang masih aktif di antrian (retries < 5)
+ */
 export async function getPendingSyncCount(): Promise<number> {
-  return offlineDB.sync_queue.filter(q => q.retries < 3).count()
+  return offlineDB.sync_queue.filter(q => q.retries < 5).count()
+}
+
+/**
+ * Hitung item Dead Letter Queue (gagal ≥ 5x, masih tersimpan untuk review)
+ * Berguna untuk ditampilkan di UI sebagai peringatan ke admin/kader
+ */
+export async function getDeadLetterCount(): Promise<number> {
+  return offlineDB.sync_queue.filter(q => q.retries >= 5).count()
+}
+
+/**
+ * Reset Dead Letter Queue — coba sync ulang semua item yang gagal ≥ 5x
+ * Dipanggil secara manual oleh admin/kader jika koneksi kembali stabil
+ */
+export async function retryDeadLetterQueue(): Promise<number> {
+  const dlqItems = await offlineDB.sync_queue.filter(q => q.retries >= 5).toArray()
+  for (const item of dlqItems) {
+    await offlineDB.sync_queue.update(item.id!, { retries: 0 })
+  }
+  return dlqItems.length
 }
 
 /**

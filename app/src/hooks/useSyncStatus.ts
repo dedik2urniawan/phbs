@@ -1,26 +1,31 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { syncToServer, getPendingSyncCount, syncReferenceData } from '@/lib/db/sync'
+import { syncToServer, getPendingSyncCount, syncReferenceData, getDeadLetterCount, retryDeadLetterQueue } from '@/lib/db/sync'
 
 interface SyncStatus {
   isOnline: boolean
   pendingCount: number
+  deadLetterCount: number
   lastSync: Date | null
   isSyncing: boolean
 }
 
-export function useSyncStatus(): SyncStatus & { triggerSync: () => void } {
+export function useSyncStatus(): SyncStatus & { triggerSync: () => void; retryDLQ: () => void } {
   const [status, setStatus] = useState<SyncStatus>({
     isOnline: true,
     pendingCount: 0,
+    deadLetterCount: 0,
     lastSync: null,
     isSyncing: false,
   })
 
   const refreshPending = async () => {
-    const count = await getPendingSyncCount()
-    setStatus(prev => ({ ...prev, pendingCount: count }))
+    const [count, dlqCount] = await Promise.all([
+      getPendingSyncCount(),
+      getDeadLetterCount(),
+    ])
+    setStatus(prev => ({ ...prev, pendingCount: count, deadLetterCount: dlqCount }))
   }
 
   const triggerSync = async () => {
@@ -61,5 +66,11 @@ export function useSyncStatus(): SyncStatus & { triggerSync: () => void } {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return { ...status, triggerSync }
+  const retryDLQ = async () => {
+    if (!navigator.onLine || status.isSyncing) return
+    await retryDeadLetterQueue()
+    await triggerSync()
+  }
+
+  return { ...status, triggerSync, retryDLQ }
 }
