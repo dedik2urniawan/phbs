@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppUser } from '@/lib/types'
 import { ClipboardList, Download, Printer, FileText } from 'lucide-react'
@@ -36,6 +36,7 @@ const NON_PHBS_INDICATORS = [
 ]
 
 export default function RekapClient({ appUser, surveysData, puskesmasList, desaList, sasaranData = [], selectedTahun, availableYears = [] }: Props) {
+  const [isExportingDetail, setIsExportingDetail] = useState(false)
   const router = useRouter()
   const isSuperAdmin = appUser.role === 'superadmin'
   const printRef = useRef<HTMLDivElement>(null)
@@ -234,128 +235,107 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
     XLSX.writeFile(wb, `Laporan_PHBS_${selectedTahun}_${new Date().getTime()}.xlsx`)
   }
 
-  const handleExportDetailExcel = () => {
-    const wb = XLSX.utils.book_new()
-    const rows: any[][] = []
+  const handleExportDetailExcel = useCallback(async () => {
+    if (isExportingDetail) return
+    setIsExportingDetail(true)
 
-    rows.push([
-      'NO',
-      'PUSKESMAS',
-      'DESA / KELURAHAN',
-      'NO KK',
-      'NIK KK',
-      'NAMA KK',
-      'ALAMAT',
-      'RT',
-      'RW',
-      'TANGGAL SURVEI',
-      'KADER SURVEYOR',
-      'STATUS PHBS',
-      'SKOR PHBS',
-      'DENOMINATOR',
-      'NAMA ART',
-      'NIK ART',
-      'HUBUNGAN KK',
-      'JENIS KELAMIN',
-      'PERSALINAN NAKES',
-      'ASI EKSKLUSIF',
-      'MENIMBANG BALITA',
-      'CUCI TANGAN',
-      'DIET SAYUR BUAH',
-      'AKTIVITAS FISIK',
-      'TIDAK MEROKOK',
-      'CEK KESEHATAN',
-      'POSYANDU HADIR',
-      'IBU HAMIL TTD',
-      'REMAJA PUTRI TTD'
-    ])
+    try {
+      // Fetch full data with ART responses from API route on-demand
+      // This avoids loading 135K+ rows with ART join on every page render
+      const pkmParam = selectedPuskesmas !== 'all' ? `&puskesmas_id=${selectedPuskesmas}` : ''
+      const res = await fetch(`/api/rekap/export-detail?tahun=${selectedTahun}${pkmParam}`)
+      if (!res.ok) throw new Error(`Gagal mengambil data: ${res.statusText}`)
+      const { data: fullSurveys } = await res.json()
 
-    const fmtBoolStr = (val: any) => (val === true ? 'YA' : val === false ? 'TIDAK' : '-')
+      const wb = XLSX.utils.book_new()
+      const rows: any[][] = []
 
-    filteredSurveys.forEach((s, idx) => {
-      const pkmObj = puskesmasList.find((p: any) => String(p.id) === String(s.households?.puskesmas_id))
-      const desaObj = desaList.find((d: any) => String(d.id) === String(s.households?.desa_id))
-      const pkmNama = s.households?.ref_puskesmas?.nama || pkmObj?.nama || '-'
-      const desaNama = s.households?.ref_desa?.desa_kel || desaObj?.desa_kel || '-'
-      const noKk = s.households?.no_kk || '-'
-      const nikKk = s.households?.nik_kk || '-'
-      const namaKk = s.households?.nama_kk || '-'
-      const alamat = s.households?.alamat || '-'
-      const rt = s.households?.rt || '-'
-      const rw = s.households?.rw || '-'
-      const surveyDate = s.survey_date || '-'
-      const kaderNama = s.kader_phbs?.nama_kader || '-'
-      const statusPhbs = s.is_rt_sehat ? 'SEHAT' : 'TIDAK SEHAT'
-      const skor = s.skor_phbs ?? '-'
-      const denom = s.denominator_phbs ?? '-'
+      rows.push([
+        'NO', 'PUSKESMAS', 'DESA / KELURAHAN', 'NO KK', 'NIK KK', 'NAMA KK',
+        'ALAMAT', 'RT', 'RW', 'TANGGAL SURVEI', 'KADER SURVEYOR',
+        'STATUS PHBS', 'SKOR PHBS', 'DENOMINATOR',
+        'NAMA ART', 'NIK ART', 'HUBUNGAN KK', 'JENIS KELAMIN',
+        'PERSALINAN NAKES', 'ASI EKSKLUSIF', 'MENIMBANG BALITA', 'CUCI TANGAN',
+        'DIET SAYUR BUAH', 'AKTIVITAS FISIK', 'TIDAK MEROKOK', 'CEK KESEHATAN',
+        'POSYANDU HADIR', 'IBU HAMIL TTD', 'REMAJA PUTRI TTD'
+      ])
 
-      if (s.survey_art_responses && s.survey_art_responses.length > 0) {
-        s.survey_art_responses.forEach((art: any) => {
+      const fmtBoolStr = (val: any) => (val === true ? 'YA' : val === false ? 'TIDAK' : '-')
+
+      // Apply same filter as current view
+      const surveysToExport = (fullSurveys as any[]).filter(s => {
+        const pId = String(s.households?.puskesmas_id)
+        const dId = String(s.households?.desa_id)
+        if (selectedPuskesmas !== 'all' && pId !== selectedPuskesmas) return false
+        if (selectedDesa !== 'all' && dId !== selectedDesa) return false
+        return true
+      })
+
+      surveysToExport.forEach((s, idx) => {
+        const pkmObj = puskesmasList.find((p: any) => String(p.id) === String(s.households?.puskesmas_id))
+        const desaObj = desaList.find((d: any) => String(d.id) === String(s.households?.desa_id))
+        const pkmNama = s.households?.ref_puskesmas?.nama || pkmObj?.nama || '-'
+        const desaNama = s.households?.ref_desa?.desa_kel || desaObj?.desa_kel || '-'
+        const noKk = s.households?.no_kk || '-'
+        const nikKk = s.households?.nik_kk || '-'
+        const namaKk = s.households?.nama_kk || '-'
+        const alamat = s.households?.alamat || '-'
+        const rt = s.households?.rt || '-'
+        const rw = s.households?.rw || '-'
+        const surveyDate = s.survey_date || '-'
+        const kaderNama = s.kader_phbs?.nama_kader || '-'
+        const statusPhbs = s.is_rt_sehat ? 'SEHAT' : 'TIDAK SEHAT'
+        const skor = s.skor_phbs ?? '-'
+        const denom = s.denominator_phbs ?? '-'
+
+        if (s.survey_art_responses && s.survey_art_responses.length > 0) {
+          s.survey_art_responses.forEach((art: any) => {
+            rows.push([
+              idx + 1, pkmNama, desaNama, noKk, nikKk, namaKk, alamat, rt, rw,
+              surveyDate, kaderNama, statusPhbs, skor, denom,
+              art.family_members?.nama || '-',
+              art.family_members?.nik || '-',
+              art.family_members?.hubungan_kk || '-',
+              art.family_members?.jenis_kelamin || '-',
+              fmtBoolStr(art.i1_persalinan_nakes),
+              fmtBoolStr(art.i2_asi_eksklusif),
+              fmtBoolStr(art.i3_menimbang_balita),
+              fmtBoolStr(art.i5_cuci_tangan),
+              fmtBoolStr(art.i8_makan_sayur_buah),
+              fmtBoolStr(art.i9_aktivitas_fisik),
+              fmtBoolStr(art.i10_tidak_merokok),
+              fmtBoolStr(art.g_cek_kesehatan),
+              fmtBoolStr(art.g_posyandu_hadir),
+              fmtBoolStr(art.g_ibu_hamil_ttd),
+              fmtBoolStr(art.g_remaja_putri_ttd)
+            ])
+          })
+        } else {
           rows.push([
-            idx + 1,
-            pkmNama,
-            desaNama,
-            noKk,
-            nikKk,
-            namaKk,
-            alamat,
-            rt,
-            rw,
-            surveyDate,
-            kaderNama,
-            statusPhbs,
-            skor,
-            denom,
-            art.family_members?.nama || '-',
-            art.family_members?.nik || '-',
-            art.family_members?.hubungan_kk || '-',
-            art.family_members?.jenis_kelamin || '-',
-            fmtBoolStr(art.i1_persalinan_nakes),
-            fmtBoolStr(art.i2_asi_eksklusif),
-            fmtBoolStr(art.i3_menimbang_balita),
-            fmtBoolStr(art.i5_cuci_tangan),
-            fmtBoolStr(art.i8_makan_sayur_buah),
-            fmtBoolStr(art.i9_aktivitas_fisik),
-            fmtBoolStr(art.i10_tidak_merokok),
-            fmtBoolStr(art.g_cek_kesehatan),
-            fmtBoolStr(art.g_posyandu_hadir),
-            fmtBoolStr(art.g_ibu_hamil_ttd),
-            fmtBoolStr(art.g_remaja_putri_ttd)
+            idx + 1, pkmNama, desaNama, noKk, nikKk, namaKk, alamat, rt, rw,
+            surveyDate, kaderNama, statusPhbs, skor, denom,
+            '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'
           ])
-        })
-      } else {
-        rows.push([
-          idx + 1,
-          pkmNama,
-          desaNama,
-          noKk,
-          nikKk,
-          namaKk,
-          alamat,
-          rt,
-          rw,
-          surveyDate,
-          kaderNama,
-          statusPhbs,
-          skor,
-          denom,
-          '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'
-        ])
-      }
-    })
+        }
+      })
 
-    const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [
-      { wch: 5 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 18 },
-      { wch: 22 }, { wch: 25 }, { wch: 6 }, { wch: 6 }, { wch: 14 },
-      { wch: 20 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 22 },
-      { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
-    ]
-    XLSX.utils.book_append_sheet(wb, ws, 'Detail KK dan ART')
-    XLSX.writeFile(wb, `Detail_Survei_KK_ART_${selectedTahun}_${new Date().getTime()}.xlsx`)
-  }
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = [
+        { wch: 5 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 18 },
+        { wch: 22 }, { wch: 25 }, { wch: 6 }, { wch: 6 }, { wch: 14 },
+        { wch: 20 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 22 },
+        { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+      ]
+      XLSX.utils.book_append_sheet(wb, ws, 'Detail KK dan ART')
+      XLSX.writeFile(wb, `Detail_Survei_KK_ART_${selectedTahun}_${new Date().getTime()}.xlsx`)
+    } catch (err: any) {
+      alert(`Gagal mengekspor data: ${err.message}`)
+    } finally {
+      setIsExportingDetail(false)
+    }
+  }, [isExportingDetail, selectedPuskesmas, selectedDesa, selectedTahun, puskesmasList, desaList])
 
   const handlePrintPDF = () => {
     window.print()
@@ -840,10 +820,27 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
             <div className="flex gap-3 flex-wrap">
               <button
                 onClick={handleExportDetailExcel}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold py-2 px-4 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
+                disabled={isExportingDetail}
+                className={`font-semibold py-2 px-4 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-sm ${
+                  isExportingDetail
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                }`}
               >
-                <Download size={16} />
-                Unduh Detail KK & ART (Excel)
+                {isExportingDetail ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Menyiapkan data...
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} />
+                    Unduh Detail KK & ART (Excel)
+                  </>
+                )}
               </button>
               <button
                 onClick={handleExportExcel}

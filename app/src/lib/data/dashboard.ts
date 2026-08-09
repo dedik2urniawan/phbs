@@ -121,12 +121,12 @@ export const getCachedHouseholdCounts = async (puskesmasId?: string | null) => {
 // DASHBOARD - Surveys (only necessary columns)
 // ==========================================
 export const getCachedSurveys = async (puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-surveys-v7-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-surveys-v8-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
     const query = supabase
       .from('surveys')
-      .select('id, household_id, tahun, skor_phbs, denominator_phbs, kader_id, i1_persalinan_nakes, i2_asi_eksklusif, i3_menimbang_balita, i4_air_bersih, i5_cuci_tangan, i6_jamban_sehat, i7_psn, i8_makan_sayur_buah, i9_aktivitas_fisik, i10_tidak_merokok, i11_cek_kesehatan, i12_kunjungan_posyandu, i14_ibu_hamil, i15_ibu_hamil_ttd, i16_remaja_putri, i17_remaja_putri_ttd, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama)), kader_phbs(nama_kader)')
+      .select('id, household_id, tahun, survey_date, is_rt_sehat, skor_phbs, denominator_phbs, kader_id, i1_persalinan_nakes, i2_asi_eksklusif, i3_menimbang_balita, i4_air_bersih, i5_cuci_tangan, i6_jamban_sehat, i7_psn, i8_makan_sayur_buah, i9_aktivitas_fisik, i10_tidak_merokok, i11_cek_kesehatan, i12_kunjungan_posyandu, i14_ibu_hamil, i15_ibu_hamil_ttd, i16_remaja_putri, i17_remaja_putri_ttd, households!inner(puskesmas_id, desa_id, ref_desa(desa_kel, id), ref_puskesmas(nama)), kader_phbs(nama_kader)')
 
     // Filter pushed to DB level (not post-fetch) to reduce payload size
     const finalQuery = puskesmasId
@@ -170,22 +170,47 @@ export const getCachedRefData = unstable_cache(
 )
 
 // ==========================================
-// REKAP - Surveys with ART responses
+// REKAP - Surveys WITHOUT ART responses (lightweight, for aggregation & charts)
+// Missing nik_kk/alamat/rt/rw fix: include all household fields needed for Excel
 // ==========================================
 export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-rekap-v7-${tahun}-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-rekap-v8-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
-    const query = supabase.from('surveys').select('*, households!inner(no_kk, nama_kk, puskesmas_id, desa_id, ref_desa(id, desa_kel), ref_puskesmas(nama)), survey_art_responses(*, family_members(nama, nik, hubungan_kk))')
-      .eq('tahun', tahun)
+    // Lightweight: no survey_art_responses join → dramatically smaller payload
+    // All household fields needed for Excel export are included here
+    const query = supabase.from('surveys').select(
+      '*, households!inner(no_kk, nik_kk, nama_kk, alamat, rt, rw, puskesmas_id, desa_id, ref_desa(id, desa_kel), ref_puskesmas(nama)), kader_phbs(nama_kader)'
+    ).eq('tahun', tahun)
 
     const finalQuery = puskesmasId
       ? query.eq('households.puskesmas_id', puskesmasId)
       : query
-    
+
     return await fetchCapped(finalQuery, 200000)
   })
 }
+
+// ==========================================
+// REKAP - Surveys WITH ART responses (heavy, used only for per-KK detail Excel export)
+// Called on-demand from API route, NOT cached on server-side render
+// ==========================================
+export const getCachedRekapSurveysWithART = async (tahun: number, puskesmasId?: string | null) => {
+  const cacheKey = `dashboard-rekap-art-v8-${tahun}-${puskesmasId || 'ALL'}`
+  return withMemoryCache(cacheKey, 14400, async () => {
+    const supabase = getServiceSupabase()
+    const query = supabase.from('surveys').select(
+      '*, households!inner(no_kk, nik_kk, nama_kk, alamat, rt, rw, puskesmas_id, desa_id, ref_desa(id, desa_kel), ref_puskesmas(nama)), kader_phbs(nama_kader), survey_art_responses(*, family_members(nama, nik, hubungan_kk, jenis_kelamin))'
+    ).eq('tahun', tahun)
+
+    const finalQuery = puskesmasId
+      ? query.eq('households.puskesmas_id', puskesmasId)
+      : query
+
+    return await fetchCapped(finalQuery, 200000)
+  })
+}
+
 
 // ==========================================
 // ANALYSIS - Surveys for analysis page
