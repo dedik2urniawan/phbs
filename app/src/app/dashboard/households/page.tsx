@@ -11,7 +11,7 @@ export default async function HouseholdsPage() {
 
   const { data: appUser } = await supabase
     .from('app_users')
-    .select('*, ref_puskesmas(id, nama, kecamatan)')
+    .select('*, ref_puskesmas(id, nama, kecamatan, is_active)')
     .eq('id', user.id)
     .single()
 

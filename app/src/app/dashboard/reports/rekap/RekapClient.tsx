@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx'
 interface Props {
   appUser: AppUser & { ref_puskesmas?: { nama: string } }
   surveysData: any[]
+  summaryData?: any
   puskesmasList: any[]
   desaList: any[]
   sasaranData?: any[]
@@ -35,7 +36,7 @@ const NON_PHBS_INDICATORS = [
   { key: 'g_remaja_ttd', label: 'KONSU\nMSI TTD' }
 ]
 
-export default function RekapClient({ appUser, surveysData, puskesmasList, desaList, sasaranData = [], selectedTahun, availableYears = [] }: Props) {
+export default function RekapClient({ appUser, surveysData, summaryData, puskesmasList, desaList, sasaranData = [], selectedTahun, availableYears = [] }: Props) {
   const [isExportingDetail, setIsExportingDetail] = useState(false)
   const router = useRouter()
   const isSuperAdmin = appUser.role === 'superadmin'
@@ -97,54 +98,65 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
   }
 
   // --- Aggregation logic for Table 1 (Detail Rekapitulasi Puskesmas / Desa) ---
-  
   const detailRekapList = useMemo(() => {
     const groupByPuskesmas = isSuperAdmin && selectedPuskesmas === 'all'
     const entities = groupByPuskesmas ? puskesmasList.filter(p => p.nama && !p.nama.toLowerCase().includes('dinkes')) : filteredDesa
     
     return entities.map(entity => {
-      // Find surveys
+      const summaryItem = groupByPuskesmas
+        ? summaryData?.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(entity.id))
+        : summaryData?.by_desa?.find((d: any) => String(d.desa_id) === String(entity.id))
+
       const entitySurveys = filteredSurveys.filter(s => 
         groupByPuskesmas 
           ? String(s.households?.puskesmas_id) === String(entity.id)
           : String(s.households?.desa_id) === String(entity.id)
       )
       
-      // Find sasaran
       const entitySasaran = sasaranData.filter(s => 
         groupByPuskesmas
           ? String(s.puskesmas_id) === String(entity.id)
           : String(s.desa_id) === String(entity.id)
       )
       const totalKkTarget = entitySasaran.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
+      const totalDisurvei = summaryItem ? summaryItem.total_disurvei : entitySurveys.length
+      const baseDenominator = totalKkTarget > 0 ? totalKkTarget : (totalDisurvei > 0 ? totalDisurvei : 1)
 
       const phbsStats = PHBS_INDICATORS.map(ind => {
         let num = 0
-        entitySurveys.forEach(s => {
-          if (s[ind.key] === true) num++
-        })
-        return { key: ind.key, num, pct: totalKkTarget > 0 ? Math.round((num / totalKkTarget) * 10) / 10 : 0 }
+        if (summaryItem) {
+          num = summaryItem[`${ind.key}_num`] || summaryItem[`${ind.key.split('_')[0]}_num`] || 0
+        } else {
+          entitySurveys.forEach(s => {
+            if (s[ind.key] === true) num++
+          })
+        }
+        return { key: ind.key, num, pct: baseDenominator > 0 ? Math.round((num / baseDenominator) * 10) / 10 : 0 }
       })
 
       const nonPhbsStats = NON_PHBS_INDICATORS.map(ind => {
         let num = 0
-        entitySurveys.forEach(s => {
-          // Check ART responses for non-phbs
-          const hasPositif = s.survey_art_responses?.some((art: any) => art[ind.key] === true)
-          if (hasPositif) num++
-        })
-        return { key: ind.key, num, pct: totalKkTarget > 0 ? Math.round((num / totalKkTarget) * 10) / 10 : 0 }
+        if (summaryItem) {
+          num = summaryItem[`${ind.key}_num`] || 0
+        } else {
+          entitySurveys.forEach(s => {
+            const hasPositif = s.survey_art_responses?.some((art: any) => art[ind.key] === true)
+            if (hasPositif) num++
+          })
+        }
+        return { key: ind.key, num, pct: baseDenominator > 0 ? Math.round((num / baseDenominator) * 10) / 10 : 0 }
       })
 
       return {
         id: entity.id,
         name: groupByPuskesmas ? entity.nama : entity.desa_kel,
         totalKkTarget,
+        totalDisurvei,
         phbsStats,
         nonPhbsStats
       }
     }).sort((a, b) => a.name.localeCompare(b.name))
-  }, [filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa, sasaranData])
+  }, [summaryData, filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa, sasaranData])
 
   // --- Aggregation logic for Table 2 (Rumah Sehat) ---
   const rumahSehatList = useMemo(() => {
@@ -152,15 +164,19 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
     const entities = groupByPuskesmas ? puskesmasList.filter(p => p.nama && !p.nama.toLowerCase().includes('dinkes')) : filteredDesa
     
     return entities.map(entity => {
+      const summaryItem = groupByPuskesmas
+        ? summaryData?.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(entity.id))
+        : summaryData?.by_desa?.find((d: any) => String(d.desa_id) === String(entity.id))
+
       const entitySurveys = filteredSurveys.filter(s => 
         groupByPuskesmas 
           ? String(s.households?.puskesmas_id) === String(entity.id)
           : String(s.households?.desa_id) === String(entity.id)
       )
       
-      const totalDisurvei = entitySurveys.length
-      const sehat = entitySurveys.filter(s => s.is_rt_sehat).length
-      const tidakSehat = totalDisurvei - sehat
+      const totalDisurvei = summaryItem ? summaryItem.total_disurvei : entitySurveys.length
+      const sehat = summaryItem ? summaryItem.total_sehat : entitySurveys.filter(s => s.is_rt_sehat).length
+      const tidakSehat = summaryItem ? summaryItem.total_tidak_sehat : (totalDisurvei - sehat)
       const pct = totalDisurvei > 0 ? Math.round((sehat / totalDisurvei) * 100) : 0
       
       return {
@@ -172,7 +188,7 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
         pct
       }
     }).filter(e => e.totalDisurvei > 0).sort((a, b) => a.name.localeCompare(b.name))
-  }, [filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa])
+  }, [summaryData, filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa])
 
   const formatBool = (val: boolean | null | undefined) => {
     if (val === null || val === undefined) {
@@ -184,8 +200,28 @@ export default function RekapClient({ appUser, surveysData, puskesmasList, desaL
     return <span className="inline-flex items-center justify-center w-6 h-6 bg-red-100/60 text-red-600 rounded font-bold text-xs shadow-sm">0</span>
   }
 
-  const totalKKFiltered = filteredSurveys.length
-  const totalSehatFiltered = filteredSurveys.filter(s => s.is_rt_sehat).length
+  const totalKKFiltered = useMemo(() => {
+    if (summaryData?.global) {
+      if (selectedPuskesmas === 'all') return summaryData.global.total_disurvei || 0
+      const pkm = summaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === selectedPuskesmas)
+      if (selectedDesa === 'all') return pkm?.total_disurvei || 0
+      const d = summaryData.by_desa?.find((item: any) => String(item.desa_id) === selectedDesa)
+      return d?.total_disurvei || 0
+    }
+    return filteredSurveys.length
+  }, [summaryData, selectedPuskesmas, selectedDesa, filteredSurveys.length])
+
+  const totalSehatFiltered = useMemo(() => {
+    if (summaryData?.global) {
+      if (selectedPuskesmas === 'all') return summaryData.global.total_sehat || 0
+      const pkm = summaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === selectedPuskesmas)
+      if (selectedDesa === 'all') return pkm?.total_sehat || 0
+      const d = summaryData.by_desa?.find((item: any) => String(item.desa_id) === selectedDesa)
+      return d?.total_sehat || 0
+    }
+    return filteredSurveys.filter(s => s.is_rt_sehat).length
+  }, [summaryData, selectedPuskesmas, selectedDesa, filteredSurveys])
+
   const percentSehat = totalKKFiltered > 0 ? Math.round((totalSehatFiltered / totalKKFiltered) * 100) : 0
 
   // Export functions

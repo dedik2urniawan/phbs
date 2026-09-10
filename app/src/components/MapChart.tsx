@@ -118,6 +118,9 @@ const LEGEND_ITEMS = [
   { color: '#d1d5db', label: 'Belum ada data' },
 ]
 
+// In-memory module cache to eliminate redundant 5MB/2MB GeoJSON network fetches
+const geoJsonCache: Record<string, any> = {}
+
 export default function MapChart({
   appUser,
   selectedIndicator,
@@ -128,25 +131,54 @@ export default function MapChart({
 }: MapChartProps) {
   const [rawGeoData, setRawGeoData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
   const isPuskesmasLevel = selectedPuskesmas === 'all'
   const resetViewRef = useRef<(() => void) | null>(null)
 
-  // Load the correct GeoJSON file based on view level
+  // Load the correct GeoJSON file based on view level with in-memory caching and safe fetch
   useEffect(() => {
-    setIsLoading(true)
-    setRawGeoData(null)
     const fileName = isPuskesmasLevel ? '/puskesmas_fix.geojson' : '/desa_fix.geojson'
-    fetch(fileName)
-      .then((res) => res.json())
+
+    // If already cached in memory, use instantly without network request
+    if (geoJsonCache[fileName]) {
+      setRawGeoData(geoJsonCache[fileName])
+      setIsLoading(false)
+      setLoadError(null)
+      return
+    }
+
+    setIsLoading(true)
+    setLoadError(null)
+    const controller = new AbortController()
+
+    fetch(fileName, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Gagal memuat file peta (${res.status} ${res.statusText})`)
+        }
+        return res.json()
+      })
       .then((data) => {
+        geoJsonCache[fileName] = data
         setRawGeoData(data)
         setIsLoading(false)
+        setLoadError(null)
       })
-      .catch((err) => {
+      .catch((err: any) => {
+        if (err.name === 'AbortError') {
+          // Ignore fetch aborts on fast component unmount or view change
+          return
+        }
         console.error('Error loading GeoJSON:', err)
+        setLoadError(err?.message || 'Gagal memuat data geometri peta spasial.')
         setIsLoading(false)
       })
-  }, [isPuskesmasLevel])
+
+    return () => {
+      controller.abort()
+    }
+  }, [isPuskesmasLevel, retryCount])
 
   // Compute filtered/unfiltered GeoJSON features
   const geoData = useMemo(() => {
@@ -247,8 +279,28 @@ export default function MapChart({
       <div className="w-full h-[450px] bg-gray-50 rounded-xl flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <p className="text-sm text-gray-500">Memuat data peta spasial...</p>
+          <p className="text-sm text-gray-500 font-medium">Memuat data peta spasial...</p>
         </div>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="w-full h-[450px] bg-red-50/50 border border-red-100 rounded-xl flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-3">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p className="text-sm font-semibold text-gray-800 mb-1">Gagal Memuat Peta Spasial</p>
+        <p className="text-xs text-gray-500 mb-4 max-w-sm">{loadError}</p>
+        <button
+          onClick={() => setRetryCount((c) => c + 1)}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-semibold rounded-lg shadow transition-all"
+        >
+          Muat Ulang Peta
+        </button>
       </div>
     )
   }

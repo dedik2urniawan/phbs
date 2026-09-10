@@ -16,7 +16,7 @@ interface Desa { id: string; desa_kel: string; puskesmas_id: string }
 interface Puskesmas { id: string; nama: string; kecamatan: string }
 interface AppUser {
   id: string; email: string; role: string; puskesmas_id: string
-  ref_puskesmas: { id: string; nama: string; kecamatan: string } | null
+  ref_puskesmas: { id: string; nama: string; kecamatan: string; is_active?: boolean } | null
 }
 
 interface Props {
@@ -46,6 +46,8 @@ export default function HouseholdsClient({
   const [currentPage, setCurrentPage]   = useState(1)
   const itemsPerPage = 10
   const puskesmasName = appUser?.ref_puskesmas?.nama || 'Dinkes Kab. Malang'
+
+  const isScheduleClosed = !isSuperAdmin && appUser?.ref_puskesmas?.is_active === false
 
   // Superadmin: saat pilih puskesmas → load desa + filter households
   const handlePkmChange = useCallback(async (pkmId: string) => {
@@ -182,15 +184,27 @@ export default function HouseholdsClient({
         </div>
         <div className="flex items-center gap-3">
           <SyncStatusBar />
-          <Link
-            href={`${basePath}/households/new${isSuperAdmin && selectedPkm ? `?pkm=${selectedPkm}` : ''}`}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-            </svg>
-            Tambah KK
-          </Link>
+          {isScheduleClosed ? (
+            <div 
+              title="Penambahan data KK ditutup sementara karena jadwal Puskesmas dinonaktifkan."
+              className="flex items-center gap-2 bg-gray-100 border border-gray-200 text-gray-400 text-sm font-medium px-4 py-2 rounded-xl cursor-not-allowed"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m11-3.5a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Jadwal Ditutup (Read-Only)
+            </div>
+          ) : (
+            <Link
+              href={`${basePath}/households/new${isSuperAdmin && selectedPkm ? `?pkm=${selectedPkm}` : ''}`}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+              </svg>
+              Tambah KK
+            </Link>
+          )}
         </div>
       </div>
 
@@ -339,22 +353,33 @@ export default function HouseholdsClient({
                     <p className="text-gray-400 text-xs mt-0.5">{h.alamat} RT {h.rt}/RW {h.rw}</p>
                   </div>
                   <div className="flex items-center gap-2 ml-4 shrink-0">
-                    <Link href={`${basePath}/survey/new?household_id=${h.id}`}
-                      className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
-                      Input Survei
-                    </Link>
+                    {!isScheduleClosed && (
+                      <Link href={`${basePath}/survey/new?household_id=${h.id}`}
+                        className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                        Input Survei
+                      </Link>
+                    )}
                     <Link href={`${basePath}/households/${h.id}`}
                       className="text-xs bg-gray-50 text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
                       Detail
                     </Link>
-                    <Link href={`${basePath}/households/${h.id}/edit`}
-                      className="text-xs bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
-                      Edit
-                    </Link>
-                    <button onClick={() => handleDelete(h.id)}
-                      className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
-                      Delete
-                    </button>
+                    {!isScheduleClosed && (
+                      <>
+                        <Link href={`${basePath}/households/${h.id}/edit`}
+                          className="text-xs bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                          Edit
+                        </Link>
+                        <button onClick={() => handleDelete(h.id)}
+                          className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                          Delete
+                        </button>
+                      </>
+                    )}
+                    {isScheduleClosed && (
+                      <span className="text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-2 py-1 rounded-md font-mono">
+                        TERKUNCI
+                      </span>
+                    )}
                   </div>
                 </div>
                 <p className="text-gray-400 text-xs mt-2">

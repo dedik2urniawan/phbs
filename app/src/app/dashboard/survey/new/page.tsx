@@ -17,11 +17,17 @@ export default async function NewSurveyPage({ searchParams }: Props) {
 
   const { data: appUser } = await supabase
     .from('app_users')
-    .select('*, ref_puskesmas(id, nama, kecamatan)')
+    .select('*, ref_puskesmas(id, nama, kecamatan, is_active)')
     .eq('id', user.id)
     .single()
 
   const isSuperAdmin = appUser?.role === 'superadmin'
+  const pkmData = Array.isArray(appUser?.ref_puskesmas) ? appUser?.ref_puskesmas[0] : appUser?.ref_puskesmas
+
+  // Jika Puskesmas dalam status jadwal ditutup, tolak akses ke form input survei
+  if (!isSuperAdmin && pkmData?.is_active === false) {
+    redirect('/dashboard/households')
+  }
 
   // Superadmin: ambil semua puskesmas untuk dropdown
   let allPuskesmas: { id: string; nama: string; kecamatan: string }[] = []

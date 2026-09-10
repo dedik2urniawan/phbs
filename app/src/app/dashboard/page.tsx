@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardClient from './DashboardClient'
-import { getCachedHouseholdCounts, getCachedRefData, getCachedSasaran, getCachedSurveys } from '@/lib/data/dashboard'
+import { getCachedRefData, getCachedSasaran, getCachedSurveys, getCachedDashboardAggregates } from '@/lib/data/dashboard'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -18,43 +18,55 @@ export default async function DashboardPage() {
 
   const isSuperAdmin = appUser?.role === 'superadmin'
   const puskesmasIdFilter = isSuperAdmin ? null : appUser?.puskesmas_id
+  const currentYear = new Date().getFullYear()
 
-  // Fetch data SEQUENTIALLY to avoid concurrent memory spikes
-  // Step 1: Light data first (ref data + sasaran — always small)
   let refPuskesmas: any[] = []
   let refDesa: any[] = []
   let sasaranData: any[] = []
-  let householdCounts = { total: 0, byPuskesmas: {} as Record<string, number>, byDesa: {} as Record<string, number> }
+  let summaryData: any = null
   let surveysData: any[] = []
 
   try {
-    // Step 1: Reference data (tiny, cached 1 hour)
-    const refData = await getCachedRefData().catch(() => ({ refPuskesmas: [], refDesa: [] }))
+    const [refData, sasaran, aggregates, surveys] = await Promise.all([
+      getCachedRefData().catch(() => ({ refPuskesmas: [], refDesa: [] })),
+      getCachedSasaran(puskesmasIdFilter).catch(() => []) || [],
+      getCachedDashboardAggregates(currentYear, puskesmasIdFilter).catch(() => null),
+      getCachedSurveys(puskesmasIdFilter).catch(() => []) || []
+    ])
+
     refPuskesmas = refData.refPuskesmas || []
     refDesa = refData.refDesa || []
-
-    // Step 2: Sasaran data (small)
-    sasaranData = await getCachedSasaran(puskesmasIdFilter).catch(() => []) || []
-
-    // Step 3: Household counts (lightweight — just counts, not raw data)
-    householdCounts = await getCachedHouseholdCounts(puskesmasIdFilter).catch(() => ({
-      total: 0, byPuskesmas: {}, byDesa: {}
-    })) || { total: 0, byPuskesmas: {}, byDesa: {} }
-
-    // Step 4: Surveys (heaviest query — runs last, alone)
-    surveysData = await getCachedSurveys(puskesmasIdFilter).catch(() => []) || []
+    sasaranData = sasaran || []
+    summaryData = aggregates
+    surveysData = surveys || []
   } catch (err) {
     console.error('[DashboardPage] Failed to fetch data:', err)
   }
 
-  // NOTE: familyMembersData is NOT fetched server-side anymore
-  // It will be loaded client-side when user clicks "Respondents" tab
+  const byPuskesmas: Record<string, number> = {}
+  const byDesa: Record<string, number> = {}
+  if (summaryData?.by_puskesmas) {
+    for (const p of summaryData.by_puskesmas) {
+      byPuskesmas[p.puskesmas_id] = p.total_kk
+    }
+  }
+  if (summaryData?.by_desa) {
+    for (const d of summaryData.by_desa) {
+      byDesa[d.desa_id] = d.total_kk
+    }
+  }
+  const householdCounts = {
+    total: summaryData?.global?.total_kk || 0,
+    byPuskesmas,
+    byDesa
+  }
 
   return (
     <DashboardClient 
       user={appUser} 
       householdCounts={householdCounts}
       surveysData={surveysData}
+      summaryData={summaryData}
       refPuskesmas={refPuskesmas}
       refDesa={refDesa}
       sasaranData={sasaranData}

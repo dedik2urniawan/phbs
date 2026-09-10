@@ -8,6 +8,18 @@ export default async function EntryLayout({ children }: { children: React.ReactN
   const user = session?.user
   if (!user) redirect('/login?mode=pwa')
 
+  // Validasi Jadwal Aktif untuk Kader Mobile
+  const { data: appUser } = await supabase
+    .from('app_users')
+    .select('role, ref_puskesmas(is_active)')
+    .eq('id', user.id)
+    .single()
+
+  const pkmData = Array.isArray(appUser?.ref_puskesmas) ? appUser?.ref_puskesmas[0] : appUser?.ref_puskesmas
+  if (appUser?.role !== 'superadmin' && pkmData?.is_active === false) {
+    redirect('/login?mode=pwa&closed=true')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 max-w-md mx-auto relative">
       {children}

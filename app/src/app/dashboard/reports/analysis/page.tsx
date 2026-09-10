@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ReportsClient from '../ReportsClient'
-import { getCachedAnalysisSurveys, getCachedSasaranByTahun, getCachedRefData } from '@/lib/data/dashboard'
+import { getCachedAnalysisSurveys, getCachedSasaranByTahun, getCachedRefData, getCachedAnalysisAnalytics, getCachedDashboardAggregates } from '@/lib/data/dashboard'
 
 export default async function AnalisisLaporanPage({ searchParams }: { searchParams: Promise<{ tahun?: string }> }) {
   const params = await searchParams
@@ -23,13 +23,17 @@ export default async function AnalisisLaporanPage({ searchParams }: { searchPara
   const selectedTahun = params?.tahun ? parseInt(params.tahun) : currentYear
 
   const [
+    analyticsData,
+    summaryData,
     surveysData,
     sasaranData,
     { refPuskesmas: puskesmasList, refDesa: desaList }
   ] = await Promise.all([
-    getCachedAnalysisSurveys(selectedTahun, puskesmasIdFilter),
-    getCachedSasaranByTahun(selectedTahun, puskesmasIdFilter),
-    getCachedRefData()
+    getCachedAnalysisAnalytics(selectedTahun, puskesmasIdFilter).catch(() => null),
+    getCachedDashboardAggregates(selectedTahun, puskesmasIdFilter).catch(() => null),
+    getCachedAnalysisSurveys(selectedTahun, puskesmasIdFilter).catch(() => []),
+    getCachedSasaranByTahun(selectedTahun, puskesmasIdFilter).catch(() => []),
+    getCachedRefData().catch(() => ({ refPuskesmas: [], refDesa: [] }))
   ])
 
   // Generate available years dynamically (from 2025 to currentYear + 1)
@@ -46,6 +50,8 @@ export default async function AnalisisLaporanPage({ searchParams }: { searchPara
 
       <ReportsClient 
         appUser={appUser as any} 
+        analyticsData={analyticsData}
+        summaryData={summaryData}
         surveysData={surveysData || []}
         puskesmasList={puskesmasList || []}
         desaList={desaList || []}

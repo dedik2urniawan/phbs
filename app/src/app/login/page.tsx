@@ -9,11 +9,12 @@ function LoginForm() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const router       = useRouter()
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode') || 'admin'
+  const isClosed = searchParams.get('closed') === 'true'
+  const [error, setError]       = useState(isClosed ? 'Jadwal survei untuk Puskesmas Anda sedang ditutup sementara oleh Dinas Kesehatan.' : '')
   const next = searchParams.get('next') || (mode === 'pwa' ? '/entry' : '/dashboard')
   const supabase = createClient()
 
@@ -36,10 +37,10 @@ function LoginForm() {
 
       const pkmData = Array.isArray(userData?.ref_puskesmas) ? userData?.ref_puskesmas[0] : userData?.ref_puskesmas
 
-      // Jika bukan superadmin, dan puskesmas dalam status non-aktif (is_active = false)
-      if (userData?.role !== 'superadmin' && pkmData?.is_active === false) {
+      // Jika akses via PWA Mobile (kader/surveyor) dan jadwal puskesmas sedang ditutup (is_active = false)
+      if (isPWA && userData?.role !== 'superadmin' && pkmData?.is_active === false) {
         await supabase.auth.signOut()
-        setError('Jadwal survei untuk Puskesmas Anda belum dimulai atau sedang ditutup.')
+        setError('Jadwal survei untuk Puskesmas Anda belum dimulai atau sedang ditutup oleh Dinas Kesehatan.')
         setLoading(false)
         return
       }

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import RekapClient from './RekapClient'
-import { getCachedRekapSurveys, getCachedSasaranByTahun, getCachedRefData } from '@/lib/data/dashboard'
+import { getCachedRekapSurveys, getCachedSasaranByTahun, getCachedRefData, getCachedDashboardAggregates } from '@/lib/data/dashboard'
 
 export default async function RekapLaporanPage({ searchParams }: { searchParams: Promise<{ tahun?: string }> }) {
   const params = await searchParams
@@ -26,11 +26,13 @@ export default async function RekapLaporanPage({ searchParams }: { searchParams:
   const [
     surveysData,
     sasaranData,
+    summaryData,
     { refPuskesmas: puskesmasList, refDesa: desaList }
   ] = await Promise.all([
-    getCachedRekapSurveys(selectedTahun, puskesmasIdFilter),
-    getCachedSasaranByTahun(selectedTahun, puskesmasIdFilter),
-    getCachedRefData()
+    getCachedRekapSurveys(selectedTahun, puskesmasIdFilter).catch(() => []),
+    getCachedSasaranByTahun(selectedTahun, puskesmasIdFilter).catch(() => []),
+    getCachedDashboardAggregates(selectedTahun, puskesmasIdFilter).catch(() => null),
+    getCachedRefData().catch(() => ({ refPuskesmas: [], refDesa: [] }))
   ])
 
   // Generate available years (e.g., from 2025 to currentYear + 1)
@@ -48,6 +50,7 @@ export default async function RekapLaporanPage({ searchParams }: { searchParams:
       <RekapClient 
         appUser={appUser as any} 
         surveysData={surveysData || []} 
+        summaryData={summaryData}
         puskesmasList={puskesmasList || []} 
         desaList={desaList || []}
         sasaranData={sasaranData || []} 

@@ -6,12 +6,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import { Activity, Home, ClipboardList, Target, TrendingUp, CheckCircle, Droplets, Utensils, CigaretteOff, Users, Stethoscope, Baby, Award, Server, Zap } from 'lucide-react'
 import WelcomeReminderModal from '@/components/WelcomeReminderModal'
 import { createClient } from '@/lib/supabase/client'
-import { getRespondentStatsAction } from './actions'
+import { getRespondentStatsAction, getPuskesmasAggregatesAction } from './actions'
 
 interface Props {
   user: AppUser & { ref_puskesmas?: { nama: string; kecamatan: string } | null }
   householdCounts: { total: number; byPuskesmas: Record<string, number>; byDesa: Record<string, number> }
   surveysData: any[]
+  summaryData?: any
   refPuskesmas: any[]
   refDesa: any[]
   sasaranData?: any[]
@@ -40,13 +41,17 @@ const NON_PHBS_INDICATORS = [
   { key: 'i17_remaja_putri_ttd', label: 'Remaja Putri TTD', icon: CheckCircle, color: '#10b981' },
 ]
 
-export default function DashboardClient({ user, householdCounts, surveysData, refPuskesmas, refDesa, sasaranData = [], familyMembersData: initialFamilyMembersData = [] }: Props) {
+export default function DashboardClient({ user, householdCounts, surveysData, summaryData, refPuskesmas, refDesa, sasaranData = [], familyMembersData: initialFamilyMembersData = [] }: Props) {
   const isSuperAdmin = user?.role === 'superadmin'
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
   
   const currentYear = new Date().getFullYear()
   
   // States
+  const [activeSummaryData, setActiveSummaryData] = useState<any>(summaryData)
+  const [isLoadingDesaData, setIsLoadingDesaData] = useState(false)
+  const pkmCache = React.useRef<Record<string, any>>({})
+
   const [activeTab, setActiveTab] = useState<'metadata' | 'respondents' | 'phbs' | 'non-phbs' | 'kader'>('metadata')
   const [filterYear, setFilterYear] = useState<number>(currentYear)
   const [filterPuskesmas, setFilterPuskesmas] = useState<string>('ALL')
@@ -74,6 +79,77 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
     }
   }, [])
 
+  // Sync activeSummaryData with initial summaryData prop when in ALL mode for currentYear
+  React.useEffect(() => {
+    if (filterPuskesmas === 'ALL' && filterYear === currentYear) {
+      setActiveSummaryData(summaryData)
+    }
+  }, [summaryData, filterPuskesmas, filterYear, currentYear])
+
+  // Fetch desa-level aggregates dynamically when a specific Puskesmas is selected or year changes
+  React.useEffect(() => {
+    const targetPkmId = isSuperAdmin 
+      ? (filterPuskesmas === 'ALL' ? null : filterPuskesmas) 
+      : (user?.puskesmas_id || null)
+
+    if (targetPkmId) {
+      const cacheKey = `${filterYear}_${targetPkmId}`
+      if (pkmCache.current[cacheKey]) {
+        setActiveSummaryData(pkmCache.current[cacheKey])
+        return
+      }
+
+      // Check if current activeSummaryData already has by_desa for this puskesmas and year
+      if (
+        activeSummaryData?.puskesmas_id_filter === targetPkmId && 
+        activeSummaryData?.tahun === filterYear && 
+        activeSummaryData?.by_desa?.length > 0
+      ) {
+        pkmCache.current[cacheKey] = activeSummaryData
+        return
+      }
+
+      setIsLoadingDesaData(true)
+      getPuskesmasAggregatesAction(filterYear, targetPkmId)
+        .then((res) => {
+          if (res) {
+            pkmCache.current[cacheKey] = res
+            setActiveSummaryData(res)
+          }
+        })
+        .catch((err) => {
+          console.error('[DashboardClient] Failed to load puskesmas aggregates:', err)
+        })
+        .finally(() => {
+          setIsLoadingDesaData(false)
+        })
+    } else if (isSuperAdmin && filterPuskesmas === 'ALL') {
+      if (filterYear === currentYear && summaryData) {
+        setActiveSummaryData(summaryData)
+      } else {
+        const cacheKey = `${filterYear}_ALL`
+        if (pkmCache.current[cacheKey]) {
+          setActiveSummaryData(pkmCache.current[cacheKey])
+          return
+        }
+        setIsLoadingDesaData(true)
+        getPuskesmasAggregatesAction(filterYear, null)
+          .then((res) => {
+            if (res) {
+              pkmCache.current[cacheKey] = res
+              setActiveSummaryData(res)
+            }
+          })
+          .catch((err) => {
+            console.error('[DashboardClient] Failed to load aggregates for year:', err)
+          })
+          .finally(() => {
+            setIsLoadingDesaData(false)
+          })
+      }
+    }
+  }, [filterPuskesmas, filterYear, isSuperAdmin, user?.puskesmas_id, currentYear, summaryData])
+
   // Lazy load family members data when respondents tab is active
   React.useEffect(() => {
     // Re-fetch when filter changes (tahun or puskesmas)
@@ -96,7 +172,12 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
   }, [activeTab, filterYear, filterPuskesmas, isSuperAdmin, user?.puskesmas_id])
 
   // Derived options
-  const years = Array.from(new Set(surveysData.map(s => s.tahun).filter(Boolean))).sort().reverse()
+  const years = Array.from(new Set([
+    currentYear,
+    2025,
+    ...surveysData.map(s => s.tahun).filter(Boolean),
+    ...sasaranData.map(s => s.tahun).filter(Boolean)
+  ])).sort().reverse()
   if (!years.includes(currentYear)) years.unshift(currentYear)
   
   const availableDesa = useMemo(() => {
@@ -281,6 +362,39 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
 
   // Aggregation Helpers
   const calculateIndicatorStats = (data: any[], key: string) => {
+    // If activeSummaryData is available and data is empty (Superadmin mode)
+    if (activeSummaryData?.global && (!data || data.length === 0)) {
+      let num = 0
+      let den = activeSummaryData.global.total_disurvei || 1
+
+      if (filterDesa !== 'ALL') {
+        const desa = activeSummaryData.by_desa?.find((d: any) => String(d.desa_id) === String(filterDesa))
+        if (desa) {
+          num = desa[`${key}_num`] || desa[`${key.split('_')[0]}_num`] || 0
+          den = desa[`${key}_den`] || desa[`${key.split('_')[0]}_den`] || desa.total_disurvei || 1
+          return { num, den, pct: den > 0 ? Math.round((num / den) * 100) : 0 }
+        }
+      }
+
+      if (isSuperAdmin && filterPuskesmas !== 'ALL') {
+        const pkm = activeSummaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(filterPuskesmas))
+        if (pkm) {
+          num = pkm[`${key}_num`] || pkm[`${key.split('_')[0]}_num`] || 0
+          den = pkm[`${key}_den`] || pkm[`${key.split('_')[0]}_den`] || pkm.total_disurvei || 1
+        } else if (activeSummaryData.global) {
+          num = activeSummaryData.global[`${key}_num`] || activeSummaryData.global[`${key.split('_')[0]}_num`] || 0
+          den = activeSummaryData.global[`${key}_den`] || activeSummaryData.global[`${key.split('_')[0]}_den`] || activeSummaryData.global.total_disurvei || 1
+        }
+      } else if (!isSuperAdmin) {
+        num = activeSummaryData.global[`${key}_num`] || activeSummaryData.global[`${key.split('_')[0]}_num`] || 0
+        den = activeSummaryData.global[`${key}_den`] || activeSummaryData.global[`${key.split('_')[0]}_den`] || activeSummaryData.global.total_disurvei || 1
+      } else {
+        num = activeSummaryData.global[`${key}_num`] || activeSummaryData.global[`${key.split('_')[0]}_num`] || 0
+        den = activeSummaryData.global[`${key}_den`] || activeSummaryData.global[`${key.split('_')[0]}_den`] || activeSummaryData.global.total_disurvei || 1
+      }
+      return { num, den, pct: den > 0 ? Math.round((num / den) * 100) : 0 }
+    }
+
     let num = 0
     let den = 0
     data.forEach(s => {
@@ -292,26 +406,53 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
     return { num, den, pct: den > 0 ? Math.round((num / den) * 100) : 0 }
   }
 
-  // Calculate scores for Capaian PHBS total
+  // Calculate scores for Capaian PHBS total (RT Sehat)
   const capaianPhbsCount = useMemo(() => {
-    return filteredSurveys.filter(s => {
-      let num = 0; let den = 0;
-      PHBS_INDICATORS.forEach(ind => {
-        if (s[ind.key] !== null && s[ind.key] !== undefined) {
-          den++
-          if (s[ind.key] === true) num++
+    if (activeSummaryData?.global) {
+      if (isSuperAdmin) {
+        if (filterPuskesmas === 'ALL') {
+          return activeSummaryData.global.total_sehat || 0
         }
-      })
-      // Based on scoring v2, it's 100% (skor === N) or >= 75 for some old legacy? We will use >= 75 as standard Capaian PHBS here or just the 100% RT Sehat rule.
-      // Wait, scoring.ts uses "skor === N" for RT Sehat. But the existing Dashboard uses calculateSkor >= 75. Let's use skor === N for strictly "Rumah Sehat" based on v2, OR let's use the DB's skor_phbs if it exists.
-      if (s.skor_phbs !== undefined && s.skor_phbs !== null && s.denominator_phbs) {
-        return s.skor_phbs === s.denominator_phbs
+        if (filterDesa !== 'ALL') {
+          const desa = activeSummaryData.by_desa?.find((d: any) => String(d.desa_id) === String(filterDesa))
+          if (desa) return desa.total_sehat || 0
+        }
+        const pkm = activeSummaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(filterPuskesmas))
+        return pkm?.total_sehat ?? activeSummaryData.global.total_sehat ?? 0
+      } else {
+        if (filterDesa === 'ALL') {
+          return activeSummaryData.global.total_sehat || 0
+        }
+        const desa = activeSummaryData.by_desa?.find((d: any) => String(d.desa_id) === String(filterDesa))
+        return desa?.total_sehat || 0
       }
-      return den > 0 && num === den;
-    }).length
-  }, [filteredSurveys])
+    }
 
-  const kkDisurvei = filteredSurveys.length
+    return filteredSurveys.filter(s => s.is_rt_sehat).length
+  }, [activeSummaryData, isSuperAdmin, filterPuskesmas, filterDesa, filteredSurveys])
+
+  const kkDisurvei = useMemo(() => {
+    if (activeSummaryData?.global) {
+      if (isSuperAdmin) {
+        if (filterPuskesmas === 'ALL') {
+          return activeSummaryData.global.total_disurvei || 0
+        }
+        if (filterDesa !== 'ALL') {
+          const desa = activeSummaryData.by_desa?.find((d: any) => String(d.desa_id) === String(filterDesa))
+          if (desa) return desa.total_disurvei || 0
+        }
+        const pkm = activeSummaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(filterPuskesmas))
+        return pkm?.total_disurvei ?? activeSummaryData.global.total_disurvei ?? 0
+      } else {
+        if (filterDesa === 'ALL') {
+          return activeSummaryData.global.total_disurvei || 0
+        }
+        const desa = activeSummaryData.by_desa?.find((d: any) => String(d.desa_id) === String(filterDesa))
+        return desa?.total_disurvei || 0
+      }
+    }
+    return filteredSurveys.length
+  }, [activeSummaryData, isSuperAdmin, filterPuskesmas, filterDesa, filteredSurveys.length])
 
   // Sasaran KK filtered — sum of jumlah_kk matching current filters & year
   const sasaranFiltered = useMemo(() => {
@@ -335,19 +476,19 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
   // Fallback total KK (from households) — only used in persentase if no sasaran
   const totalKkHouseholds = useMemo(() => {
     if (isSuperAdmin && filterPuskesmas === 'ALL' && filterDesa === 'ALL') {
-      return householdCounts?.total || 0;
+      return householdCounts?.total || activeSummaryData?.global?.total_kk || 0;
     }
     if (filterDesa !== 'ALL') {
-      return householdCounts?.byDesa?.[filterDesa] || 0;
+      return householdCounts?.byDesa?.[filterDesa] || activeSummaryData?.by_desa?.find((d: any) => String(d.desa_id) === String(filterDesa))?.total_kk || 0;
     }
     if (filterPuskesmas !== 'ALL') {
-      return householdCounts?.byPuskesmas?.[filterPuskesmas] || 0;
+      return householdCounts?.byPuskesmas?.[filterPuskesmas] || activeSummaryData?.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(filterPuskesmas))?.total_kk || activeSummaryData?.global?.total_kk || 0;
     }
     if (!isSuperAdmin && user?.puskesmas_id) {
-      return householdCounts?.byPuskesmas?.[user?.puskesmas_id] || 0;
+      return householdCounts?.byPuskesmas?.[user?.puskesmas_id] || activeSummaryData?.global?.total_kk || 0;
     }
-    return householdCounts?.total || 0;
-  }, [householdCounts, filterPuskesmas, filterDesa, isSuperAdmin, user?.puskesmas_id])
+    return householdCounts?.total || activeSummaryData?.global?.total_kk || 0;
+  }, [householdCounts, filterPuskesmas, filterDesa, isSuperAdmin, user?.puskesmas_id, activeSummaryData])
 
   // Use sasaran if available, else use households count
   const totalKkFiltered = hasSasaran ? totalSasaranKK : totalKkHouseholds
@@ -362,41 +503,50 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
     
     if (groupByPuskesmas) {
       return refPuskesmas.filter(p => !p.nama.toLowerCase().includes('dinkes')).map(p => {
-        const surveysForP = filteredSurveys.filter(s => s.households?.puskesmas_id === p.id)
+        const pkmSummary = activeSummaryData?.by_puskesmas?.find((item: any) => String(item.puskesmas_id) === String(p.id))
+        const disurveiCount = pkmSummary ? pkmSummary.total_disurvei : (filteredSurveys.filter(s => s.households?.puskesmas_id === p.id).length)
+        const sehatCount = pkmSummary ? pkmSummary.total_sehat : (filteredSurveys.filter(s => s.households?.puskesmas_id === p.id && s.is_rt_sehat).length)
+
         if (type === 'progress') {
           const sasaranForP = sasaranData.filter(s => s.puskesmas_id === p.id && s.tahun === filterYear)
           const totalSas = sasaranForP.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
-          const pct = totalSas > 0 ? Number(((surveysForP.length / totalSas) * 100).toFixed(2)) : 0
-          return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Sasaran: totalSas }
+          const pct = totalSas > 0 ? Number(((disurveiCount / totalSas) * 100).toFixed(2)) : 0
+          return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: disurveiCount, Sasaran: totalSas }
         } else if (type === 'progress_sistem') {
-          const totalKkP = householdCounts?.byPuskesmas?.[p.id] || 0
-          const pct = totalKkP > 0 ? Number(((surveysForP.length / totalKkP) * 100).toFixed(2)) : 0
-          return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: surveysForP.length, Total_KK: totalKkP }
+          const totalKkP = householdCounts?.byPuskesmas?.[p.id] || pkmSummary?.total_kk || 0
+          const pct = totalKkP > 0 ? Number(((disurveiCount / totalKkP) * 100).toFixed(2)) : 0
+          return { name: p.nama, Persentase: Math.min(pct, 100), Disurvei: disurveiCount, Total_KK: totalKkP }
         } else {
-          const sehat = surveysForP.filter(s => s.is_rt_sehat).length
-          const pct = surveysForP.length > 0 ? Number(((sehat / surveysForP.length) * 100).toFixed(2)) : 0
-          return { name: p.nama, Persentase: pct, Sehat: sehat, Total: surveysForP.length }
+          const pct = disurveiCount > 0 ? Number(((sehatCount / disurveiCount) * 100).toFixed(2)) : 0
+          return { name: p.nama, Persentase: pct, Sehat: sehatCount, Total: disurveiCount }
         }
       }).sort((a, b) => b.Persentase - a.Persentase)
     } else {
-      const validDesa = filterPuskesmas !== 'ALL' 
+      let validDesa = filterPuskesmas !== 'ALL' 
         ? refDesa.filter(d => d.puskesmas_id === filterPuskesmas)
         : refDesa.filter(d => !isSuperAdmin ? d.puskesmas_id === user?.puskesmas_id : true)
+      
+      if (filterDesa !== 'ALL') {
+        validDesa = validDesa.filter(d => String(d.id) === String(filterDesa))
+      }
+
       return validDesa.map(d => {
-        const surveysForD = filteredSurveys.filter(s => s.households?.desa_id === d.id)
+        const desaSummary = activeSummaryData?.by_desa?.find((item: any) => String(item.desa_id) === String(d.id))
+        const disurveiCount = desaSummary ? desaSummary.total_disurvei : (filteredSurveys.filter(s => s.households?.desa_id === d.id).length)
+        const sehatCount = desaSummary ? desaSummary.total_sehat : (filteredSurveys.filter(s => s.households?.desa_id === d.id && s.is_rt_sehat).length)
+
         if (type === 'progress') {
           const sasaranForD = sasaranData.filter(s => s.desa_id === d.id && s.tahun === filterYear)
           const totalSas = sasaranForD.reduce((sum, s) => sum + (s.jumlah_kk || 0), 0)
-          const pct = totalSas > 0 ? Number(((surveysForD.length / totalSas) * 100).toFixed(2)) : 0
-          return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Sasaran: totalSas }
+          const pct = totalSas > 0 ? Number(((disurveiCount / totalSas) * 100).toFixed(2)) : 0
+          return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: disurveiCount, Sasaran: totalSas }
         } else if (type === 'progress_sistem') {
-          const totalKkD = householdCounts?.byDesa?.[d.id] || 0
-          const pct = totalKkD > 0 ? Number(((surveysForD.length / totalKkD) * 100).toFixed(2)) : 0
-          return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: surveysForD.length, Total_KK: totalKkD }
+          const totalKkD = householdCounts?.byDesa?.[d.id] || desaSummary?.total_kk || 0
+          const pct = totalKkD > 0 ? Number(((disurveiCount / totalKkD) * 100).toFixed(2)) : 0
+          return { name: d.desa_kel, Persentase: Math.min(pct, 100), Disurvei: disurveiCount, Total_KK: totalKkD }
         } else {
-          const sehat = surveysForD.filter(s => s.is_rt_sehat).length
-          const pct = surveysForD.length > 0 ? Number(((sehat / surveysForD.length) * 100).toFixed(2)) : 0
-          return { name: d.desa_kel, Persentase: pct, Sehat: sehat, Total: surveysForD.length }
+          const pct = disurveiCount > 0 ? Number(((sehatCount / disurveiCount) * 100).toFixed(2)) : 0
+          return { name: d.desa_kel, Persentase: pct, Sehat: sehatCount, Total: disurveiCount }
         }
       }).sort((a, b) => b.Persentase - a.Persentase)
     }
@@ -404,15 +554,21 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
 
   // Chart Data preparation
   const getChartData = (indicatorKey: string) => {
-    // Determine grouping: If Superadmin & ALL Puskesmas -> group by Puskesmas. Else -> group by Desa
     const groupByPuskesmas = isSuperAdmin && filterPuskesmas === 'ALL'
     
     if (groupByPuskesmas) {
-      // Exclude Dinkes
       const validPuskesmas = refPuskesmas.filter(p => !p.nama.toLowerCase().includes('dinkes'))
       return validPuskesmas.map(p => {
-        const surveysForP = filteredSurveys.filter(s => s.households?.puskesmas_id === p.id)
-        const stats = calculateIndicatorStats(surveysForP, indicatorKey)
+        const pkmSummary = activeSummaryData?.by_puskesmas?.find((item: any) => String(item.puskesmas_id) === String(p.id))
+        let stats = { pct: 0, num: 0, den: 0 }
+        if (pkmSummary) {
+          const num = pkmSummary[`${indicatorKey}_num`] || pkmSummary[`${indicatorKey.split('_')[0]}_num`] || 0
+          const den = pkmSummary[`${indicatorKey}_den`] || pkmSummary[`${indicatorKey.split('_')[0]}_den`] || pkmSummary.total_disurvei || 1
+          stats = { pct: den > 0 ? Math.round((num / den) * 100) : 0, num, den }
+        } else {
+          const surveysForP = filteredSurveys.filter(s => s.households?.puskesmas_id === p.id)
+          stats = calculateIndicatorStats(surveysForP, indicatorKey)
+        }
         return {
           name: p.nama,
           Persentase: stats.pct,
@@ -421,11 +577,21 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
         }
       }).sort((a, b) => b.Persentase - a.Persentase)
     } else {
-      // Group by Desa
-      const validDesa = availableDesa
+      let validDesa = availableDesa
+      if (filterDesa !== 'ALL') {
+        validDesa = validDesa.filter(d => String(d.id) === String(filterDesa))
+      }
       return validDesa.map(d => {
-        const surveysForD = filteredSurveys.filter(s => s.households?.desa_id === d.id)
-        const stats = calculateIndicatorStats(surveysForD, indicatorKey)
+        const desaSummary = activeSummaryData?.by_desa?.find((item: any) => String(item.desa_id) === String(d.id))
+        let stats = { pct: 0, num: 0, den: 0 }
+        if (desaSummary) {
+          const num = desaSummary[`${indicatorKey}_num`] || desaSummary[`${indicatorKey.split('_')[0]}_num`] || 0
+          const den = desaSummary[`${indicatorKey}_den`] || desaSummary[`${indicatorKey.split('_')[0]}_den`] || desaSummary.total_disurvei || 1
+          stats = { pct: den > 0 ? Math.round((num / den) * 100) : 0, num, den }
+        } else {
+          const surveysForD = filteredSurveys.filter(s => s.households?.desa_id === d.id)
+          stats = calculateIndicatorStats(surveysForD, indicatorKey)
+        }
         return {
           name: d.desa_kel,
           Persentase: stats.pct,
@@ -555,7 +721,12 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
           </div>
           
           <div className="h-[400px] w-full mt-4">
-            {chartData.length > 0 ? (
+            {isLoadingDesaData ? (
+              <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
+                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p className="text-sm font-medium">Memuat data grafik desa...</p>
+              </div>
+            ) : chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
@@ -794,6 +965,14 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
                 </div>
               </div>
               {(() => {
+                if (isLoadingDesaData) {
+                  return (
+                    <div className="h-[360px] w-full flex flex-col items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
+                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                      <p className="text-sm font-medium">Memuat data metadata desa...</p>
+                    </div>
+                  )
+                }
                 const chartData = getMetadataChartData(activeMetadataChart)
                 const chartColor = activeMetadataChart === 'progress' ? '#3b82f6' : activeMetadataChart === 'progress_sistem' ? '#8b5cf6' : '#10b981'
                 return chartData.length > 0 ? (
@@ -1216,14 +1395,25 @@ export default function DashboardClient({ user, householdCounts, surveysData, re
               </div>
             </div>
             
-            {(() => {
+            {isLoadingDesaData ? (
+              <div className="h-[300px] w-full flex flex-col items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
+                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p className="text-sm font-medium">Memuat data peringkat kader...</p>
+              </div>
+            ) : (() => {
               const kaderMap: Record<string, { nama: string, count: number }> = {}
-              filteredSurveys.forEach(s => {
-                const id = s.kader_id || 'unknown'
-                const nama = s.kader_phbs?.nama_kader || 'Kader Dihapus / Tidak Diketahui'
-                if (!kaderMap[id]) kaderMap[id] = { nama, count: 0 }
-                kaderMap[id].count++
-              })
+              if (activeSummaryData?.top_kader && filteredSurveys.length === 0) {
+                activeSummaryData.top_kader.forEach((k: any) => {
+                  kaderMap[k.id] = { nama: `${k.nama_kader} (${k.puskesmas_nama || 'Puskesmas'})`, count: k.total_survei || 0 }
+                })
+              } else {
+                filteredSurveys.forEach(s => {
+                  const id = s.kader_id || 'unknown'
+                  const nama = s.kader_phbs?.nama_kader || 'Kader Dihapus / Tidak Diketahui'
+                  if (!kaderMap[id]) kaderMap[id] = { nama, count: 0 }
+                  kaderMap[id].count++
+                })
+              }
               
               let sortedKader = Object.values(kaderMap).sort((a, b) => b.count - a.count)
               

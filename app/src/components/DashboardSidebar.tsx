@@ -86,16 +86,18 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
 
       <nav className="p-3 flex-1 overflow-y-auto space-y-1">
         {menuItems.map((item) => {
-          const isSurveyOrHousehold = item.href === '/dashboard/households' || item.href === '/dashboard/survey/new'
-          const isDisabled = isPkmInactive && isSurveyOrHousehold
+          // Hanya menu Input Survei yang dikunci total dari navigasi saat jadwal ditutup.
+          // Menu Data Rumah Tangga tetap bisa dibuka untuk melihat data (mode read-only).
+          const isSurveyInput = item.href === '/dashboard/survey/new'
+          const isDisabled = isPkmInactive && isSurveyInput
           const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)
 
           if (isDisabled) {
             return (
               <div
                 key={item.href}
-                title={isCollapsed ? `${item.label} (Jadwal Ditutup)` : 'Jadwal survei sedang ditutup'}
-                onClick={() => alert('Kegiatan survei PHBS untuk Puskesmas Anda sedang ditutup sementara oleh Dinas Kesehatan.')}
+                title={isCollapsed ? `${item.label} (Jadwal Ditutup)` : 'Jadwal survei sedang ditutup sementara'}
+                onClick={() => alert('Fitur Input Survei sedang dinonaktifkan sementara karena jadwal survei Puskesmas Anda ditutup oleh Dinas Kesehatan.')}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium opacity-50 cursor-not-allowed bg-black/10 text-white/50 ${
                   isCollapsed ? 'justify-center' : ''
                 }`}
