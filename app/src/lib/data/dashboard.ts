@@ -227,24 +227,89 @@ async function computeParallelAggregates(supabase: any, tahun: number, puskesmas
 // DASHBOARD - Aggregates (Main High-Speed Function)
 // ==========================================
 export const getCachedDashboardAggregates = async (tahun: number = 2026, puskesmasId?: string | null) => {
-  const cacheKey = `dashboard-aggregates-v9-${tahun}-${puskesmasId || 'ALL'}`
+  const cacheKey = `dashboard-aggregates-v10-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
 
-    // 1. Coba RPC get_dashboard_aggregates dulu (< 100ms di Supabase)
-    try {
-      const { data: rpcData, error: rpcError } = await (supabase as any).rpc('get_dashboard_aggregates', {
-        p_tahun: tahun,
-        p_puskesmas_id: puskesmasId || null
-      })
-      if (!rpcError && rpcData && rpcData.global) {
-        return rpcData
+    // 1. Jika spesifik Puskesmas, panggil RPC get_dashboard_aggregates (< 250ms di Supabase)
+    if (puskesmasId) {
+      try {
+        const { data: rpcData, error: rpcError } = await (supabase as any).rpc('get_dashboard_aggregates', {
+          p_tahun: tahun,
+          p_puskesmas_id: puskesmasId
+        })
+        if (!rpcError && rpcData && rpcData.global) {
+          return rpcData
+        }
+      } catch (err) {
+        console.warn('[getCachedDashboardAggregates] Single RPC fallback to parallel server aggregation:', err)
       }
-    } catch (err) {
-      console.warn('[getCachedDashboardAggregates] RPC fallback to parallel server aggregation:', err)
+      return await computeParallelAggregates(supabase, tahun, puskesmasId)
     }
 
-    // 2. Fallback cerdas: parallel head queries
+    // 2. Jika Superadmin (ALL Puskesmas), lakukan batch RPC per Puskesmas dalam batch 10 (~2 detik)
+    // Ini mengembalikan 39 Puskesmas LENGKAP dengan seluruh 16 indikator tanpa risiko statement timeout
+    try {
+      const { data: refPuskesmas } = await supabase
+        .from('ref_puskesmas')
+        .select('id, nama')
+        .not('nama', 'ilike', '%dinkes%')
+        .order('nama')
+
+      if (refPuskesmas && refPuskesmas.length > 0) {
+        const by_puskesmas: any[] = []
+        for (let i = 0; i < refPuskesmas.length; i += 10) {
+          const chunk = refPuskesmas.slice(i, i + 10)
+          const chunkRes = await Promise.all(chunk.map((p: any) =>
+            (supabase as any).rpc('get_dashboard_aggregates', { p_tahun: tahun, p_puskesmas_id: p.id })
+          ))
+          chunkRes.forEach((r: any) => {
+            if (r.data?.by_puskesmas?.[0]) {
+              by_puskesmas.push(r.data.by_puskesmas[0])
+            }
+          })
+        }
+
+        if (by_puskesmas.length > 0) {
+          const sum = (key: string) => by_puskesmas.reduce((acc, p) => acc + (p[key] || 0), 0)
+          const global = {
+            total_kk: sum('total_kk'),
+            total_disurvei: sum('total_disurvei'),
+            total_sehat: sum('total_sehat'),
+            total_tidak_sehat: sum('total_tidak_sehat'),
+            i1_num: sum('i1_num'), i1_den: sum('i1_den'),
+            i2_num: sum('i2_num'), i2_den: sum('i2_den'),
+            i3_num: sum('i3_num'), i3_den: sum('i3_den'),
+            i4_num: sum('i4_num'), i4_den: sum('i4_den'),
+            i5_num: sum('i5_num'), i5_den: sum('i5_den'),
+            i6_num: sum('i6_num'), i6_den: sum('i6_den'),
+            i7_num: sum('i7_num'), i7_den: sum('i7_den'),
+            i8_num: sum('i8_num'), i8_den: sum('i8_den'),
+            i9_num: sum('i9_num'), i9_den: sum('i9_den'),
+            i10_num: sum('i10_num'), i10_den: sum('i10_den'),
+            i11_num: sum('i11_num'),
+            i12_num: sum('i12_num'),
+            i14_num: sum('i14_num'),
+            i15_num: sum('i15_num'),
+            i16_num: sum('i16_num'),
+            i17_num: sum('i17_num'),
+          }
+
+          return {
+            tahun,
+            puskesmas_id_filter: null,
+            global,
+            by_puskesmas,
+            by_desa: [],
+            top_kader: []
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[getCachedDashboardAggregates] Batch RPC failed, falling back to computeParallelAggregates:', err)
+    }
+
+    // 3. Fallback cerdas jika terjadi kendala jaringan
     return await computeParallelAggregates(supabase, tahun, puskesmasId)
   })
 }

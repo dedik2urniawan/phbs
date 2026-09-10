@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation'
 import { AppUser } from '@/lib/types'
 import { ClipboardList, Download, Printer, FileText } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { 
+  getPuskesmasAggregatesAction, 
+  getPuskesmasRekapSurveysAction, 
+  getSurveyArtResponsesAction 
+} from '@/app/dashboard/actions'
 
 interface Props {
   appUser: AppUser & { ref_puskesmas?: { nama: string } }
@@ -31,9 +36,9 @@ const PHBS_INDICATORS = [
 ]
 
 const NON_PHBS_INDICATORS = [
-  { key: 'g_posyandu_hadir', label: 'POSYANDU' },
-  { key: 'g_bumil_ttd', label: 'KONSUMSI\nTTD' },
-  { key: 'g_remaja_ttd', label: 'KONSU\nMSI TTD' }
+  { key: 'g_posyandu_hadir', rpcKey: 'i12_num', label: 'POSYANDU' },
+  { key: 'g_bumil_ttd', rpcKey: 'i15_num', label: 'KONSUMSI\nTTD' },
+  { key: 'g_remaja_ttd', rpcKey: 'i17_num', label: 'KONSU\nMSI TTD' }
 ]
 
 export default function RekapClient({ appUser, surveysData, summaryData, puskesmasList, desaList, sasaranData = [], selectedTahun, availableYears = [] }: Props) {
@@ -45,6 +50,18 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
   // Tabs
   const [activeMainTab, setActiveMainTab] = useState<'rekap' | 'laporan'>('rekap')
 
+  // Dynamic Data & Caches for Superadmin & Puskesmas sync
+  const [activeSummaryData, setActiveSummaryData] = useState<any>(summaryData)
+  const [activeSurveysData, setActiveSurveysData] = useState<any[]>(surveysData)
+  const [isLoadingPkmData, setIsLoadingPkmData] = useState(false)
+  
+  const pkmSummaryCache = useRef<Record<string, any>>({})
+  const pkmSurveysCache = useRef<Record<string, any[]>>({})
+
+  // ART Details on-demand cache
+  const [artResponsesMap, setArtResponsesMap] = useState<Record<string, any[]>>({})
+  const [loadingArtMap, setLoadingArtMap] = useState<Record<string, boolean>>({})
+
   // Filters
   const [selectedPuskesmas, setSelectedPuskesmas] = useState<string>(
     isSuperAdmin ? 'all' : String(appUser.puskesmas_id)
@@ -55,13 +72,70 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
   const itemsPerPage = 50
 
-  const filteredDesa = useMemo(() => {
+  // Sync props on reset or initial render
+  useEffect(() => {
+    if (selectedPuskesmas === 'all') {
+      setActiveSummaryData(summaryData)
+      setActiveSurveysData(surveysData)
+    }
+  }, [summaryData, surveysData, selectedPuskesmas])
+
+  // On-demand fetch when a specific Puskesmas is selected
+  useEffect(() => {
+    const targetPkmId = isSuperAdmin 
+      ? (selectedPuskesmas === 'all' ? null : selectedPuskesmas)
+      : String(appUser.puskesmas_id)
+
+    if (targetPkmId) {
+      const cacheKey = `${selectedTahun}_${targetPkmId}`
+
+      // Check summary cache
+      if (pkmSummaryCache.current[cacheKey]) {
+        setActiveSummaryData(pkmSummaryCache.current[cacheKey])
+      } else {
+        setIsLoadingPkmData(true)
+        getPuskesmasAggregatesAction(selectedTahun || new Date().getFullYear(), targetPkmId)
+          .then((res) => {
+            if (res) {
+              pkmSummaryCache.current[cacheKey] = res
+              setActiveSummaryData(res)
+            }
+          })
+          .catch((err) => console.error('Failed to load pkm aggregates in rekap:', err))
+          .finally(() => setIsLoadingPkmData(false))
+      }
+
+      // Check surveys cache (fetches scoped surveys so table per RT displays all rows of that puskesmas)
+      if (pkmSurveysCache.current[cacheKey]) {
+        setActiveSurveysData(pkmSurveysCache.current[cacheKey])
+      } else {
+        getPuskesmasRekapSurveysAction(selectedTahun || new Date().getFullYear(), targetPkmId)
+          .then((res) => {
+            if (res && res.length > 0) {
+              pkmSurveysCache.current[cacheKey] = res
+              setActiveSurveysData(res)
+            }
+          })
+          .catch((err) => console.error('Failed to load pkm surveys in rekap:', err))
+      }
+    }
+  }, [selectedPuskesmas, selectedTahun, isSuperAdmin, appUser.puskesmas_id])
+
+  const availableDesaOptions = useMemo(() => {
     if (selectedPuskesmas === 'all') return desaList
     return desaList.filter(d => String(d.puskesmas_id) === String(selectedPuskesmas))
   }, [desaList, selectedPuskesmas])
 
+  const filteredDesa = useMemo(() => {
+    let list = availableDesaOptions
+    if (selectedDesa !== 'all') {
+      list = list.filter(d => String(d.id) === String(selectedDesa))
+    }
+    return list
+  }, [availableDesaOptions, selectedDesa])
+
   const filteredSurveys = useMemo(() => {
-    return surveysData.filter(s => {
+    return activeSurveysData.filter(s => {
       const pId = String(s.households?.puskesmas_id)
       const dId = String(s.households?.desa_id)
       
@@ -80,7 +154,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
       }
       return true
     })
-  }, [surveysData, selectedPuskesmas, selectedDesa, searchQuery])
+  }, [activeSurveysData, selectedPuskesmas, selectedDesa, searchQuery])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -93,8 +167,21 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
   
   const totalPages = Math.ceil(filteredSurveys.length / itemsPerPage)
 
-  const toggleRow = (id: string) => {
-    setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }))
+  const toggleRow = async (id: string) => {
+    const willExpand = !expandedRows[id]
+    setExpandedRows(prev => ({ ...prev, [id]: willExpand }))
+
+    if (willExpand && !artResponsesMap[id]) {
+      setLoadingArtMap(prev => ({ ...prev, [id]: true }))
+      try {
+        const data = await getSurveyArtResponsesAction(id)
+        setArtResponsesMap(prev => ({ ...prev, [id]: data || [] }))
+      } catch (err) {
+        console.error('Failed to fetch ART detail:', err)
+      } finally {
+        setLoadingArtMap(prev => ({ ...prev, [id]: false }))
+      }
+    }
   }
 
   // --- Aggregation logic for Table 1 (Detail Rekapitulasi Puskesmas / Desa) ---
@@ -104,8 +191,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
     
     return entities.map(entity => {
       const summaryItem = groupByPuskesmas
-        ? summaryData?.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(entity.id))
-        : summaryData?.by_desa?.find((d: any) => String(d.desa_id) === String(entity.id))
+        ? activeSummaryData?.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(entity.id))
+        : activeSummaryData?.by_desa?.find((d: any) => String(d.desa_id) === String(entity.id))
 
       const entitySurveys = filteredSurveys.filter(s => 
         groupByPuskesmas 
@@ -125,26 +212,27 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
       const phbsStats = PHBS_INDICATORS.map(ind => {
         let num = 0
         if (summaryItem) {
-          num = summaryItem[`${ind.key}_num`] || summaryItem[`${ind.key.split('_')[0]}_num`] || 0
+          num = summaryItem[`${ind.key}_num`] ?? summaryItem[`${ind.key.split('_')[0]}_num`] ?? 0
         } else {
           entitySurveys.forEach(s => {
             if (s[ind.key] === true) num++
           })
         }
-        return { key: ind.key, num, pct: baseDenominator > 0 ? Math.round((num / baseDenominator) * 10) / 10 : 0 }
+        const pct = baseDenominator > 0 ? (num / baseDenominator) * 100 : 0
+        return { key: ind.key, num, pct }
       })
 
       const nonPhbsStats = NON_PHBS_INDICATORS.map(ind => {
         let num = 0
         if (summaryItem) {
-          num = summaryItem[`${ind.key}_num`] || 0
+          num = (ind.rpcKey ? summaryItem[ind.rpcKey] : summaryItem[`${ind.key}_num`]) ?? 0
         } else {
           entitySurveys.forEach(s => {
-            const hasPositif = s.survey_art_responses?.some((art: any) => art[ind.key] === true)
-            if (hasPositif) num++
+            if (s[ind.key] === true) num++
           })
         }
-        return { key: ind.key, num, pct: baseDenominator > 0 ? Math.round((num / baseDenominator) * 10) / 10 : 0 }
+        const pct = baseDenominator > 0 ? (num / baseDenominator) * 100 : 0
+        return { key: ind.key, num, pct }
       })
 
       return {
@@ -156,7 +244,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
         nonPhbsStats
       }
     }).sort((a, b) => a.name.localeCompare(b.name))
-  }, [summaryData, filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa, sasaranData])
+  }, [activeSummaryData, filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa, sasaranData])
 
   // --- Aggregation logic for Table 2 (Rumah Sehat) ---
   const rumahSehatList = useMemo(() => {
@@ -165,8 +253,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
     
     return entities.map(entity => {
       const summaryItem = groupByPuskesmas
-        ? summaryData?.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(entity.id))
-        : summaryData?.by_desa?.find((d: any) => String(d.desa_id) === String(entity.id))
+        ? activeSummaryData?.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === String(entity.id))
+        : activeSummaryData?.by_desa?.find((d: any) => String(d.desa_id) === String(entity.id))
 
       const entitySurveys = filteredSurveys.filter(s => 
         groupByPuskesmas 
@@ -177,7 +265,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
       const totalDisurvei = summaryItem ? summaryItem.total_disurvei : entitySurveys.length
       const sehat = summaryItem ? summaryItem.total_sehat : entitySurveys.filter(s => s.is_rt_sehat).length
       const tidakSehat = summaryItem ? summaryItem.total_tidak_sehat : (totalDisurvei - sehat)
-      const pct = totalDisurvei > 0 ? Math.round((sehat / totalDisurvei) * 100) : 0
+      const pct = totalDisurvei > 0 ? (sehat / totalDisurvei) * 100 : 0
       
       return {
         id: entity.id,
@@ -188,7 +276,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
         pct
       }
     }).filter(e => e.totalDisurvei > 0).sort((a, b) => a.name.localeCompare(b.name))
-  }, [summaryData, filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa])
+  }, [activeSummaryData, filteredSurveys, isSuperAdmin, selectedPuskesmas, puskesmasList, filteredDesa])
 
   const formatBool = (val: boolean | null | undefined) => {
     if (val === null || val === undefined) {
@@ -201,28 +289,28 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
   }
 
   const totalKKFiltered = useMemo(() => {
-    if (summaryData?.global) {
-      if (selectedPuskesmas === 'all') return summaryData.global.total_disurvei || 0
-      const pkm = summaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === selectedPuskesmas)
+    if (activeSummaryData?.global) {
+      if (selectedPuskesmas === 'all') return activeSummaryData.global.total_disurvei || 0
+      const pkm = activeSummaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === selectedPuskesmas)
       if (selectedDesa === 'all') return pkm?.total_disurvei || 0
-      const d = summaryData.by_desa?.find((item: any) => String(item.desa_id) === selectedDesa)
+      const d = activeSummaryData.by_desa?.find((item: any) => String(item.desa_id) === selectedDesa)
       return d?.total_disurvei || 0
     }
     return filteredSurveys.length
-  }, [summaryData, selectedPuskesmas, selectedDesa, filteredSurveys.length])
+  }, [activeSummaryData, selectedPuskesmas, selectedDesa, filteredSurveys.length])
 
   const totalSehatFiltered = useMemo(() => {
-    if (summaryData?.global) {
-      if (selectedPuskesmas === 'all') return summaryData.global.total_sehat || 0
-      const pkm = summaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === selectedPuskesmas)
+    if (activeSummaryData?.global) {
+      if (selectedPuskesmas === 'all') return activeSummaryData.global.total_sehat || 0
+      const pkm = activeSummaryData.by_puskesmas?.find((p: any) => String(p.puskesmas_id) === selectedPuskesmas)
       if (selectedDesa === 'all') return pkm?.total_sehat || 0
-      const d = summaryData.by_desa?.find((item: any) => String(item.desa_id) === selectedDesa)
+      const d = activeSummaryData.by_desa?.find((item: any) => String(item.desa_id) === selectedDesa)
       return d?.total_sehat || 0
     }
     return filteredSurveys.filter(s => s.is_rt_sehat).length
-  }, [summaryData, selectedPuskesmas, selectedDesa, filteredSurveys])
+  }, [activeSummaryData, selectedPuskesmas, selectedDesa, filteredSurveys])
 
-  const percentSehat = totalKKFiltered > 0 ? Math.round((totalSehatFiltered / totalKKFiltered) * 100) : 0
+  const percentSehat = totalKKFiltered > 0 ? (totalSehatFiltered / totalKKFiltered) * 100 : 0
 
   // Export functions
   const handleExportExcel = () => {
@@ -241,8 +329,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
       // Row 1: TOTAL
       rows1.push([
         idx + 1, r.name, 'TOTAL',
-        ...r.phbsStats.map(() => r.totalKkTarget),
-        ...r.nonPhbsStats.map(() => r.totalKkTarget)
+        ...r.phbsStats.map(() => r.totalKkTarget > 0 ? r.totalKkTarget : r.totalDisurvei),
+        ...r.nonPhbsStats.map(() => r.totalKkTarget > 0 ? r.totalKkTarget : r.totalDisurvei)
       ])
       // Row 2: YG DI KAJI
       rows1.push([
@@ -253,8 +341,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
       // Row 3: %
       rows1.push([
         '', '', '%',
-        ...r.phbsStats.map(s => s.pct),
-        ...r.nonPhbsStats.map(s => s.pct)
+        ...r.phbsStats.map(s => `${s.pct.toFixed(2).replace('.', ',')}%`),
+        ...r.nonPhbsStats.map(s => `${s.pct.toFixed(2).replace('.', ',')}%`)
       ])
     })
     const ws1 = XLSX.utils.aoa_to_sheet(rows1)
@@ -263,7 +351,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
     // Sheet 2: Rumah Sehat
     const headers2 = ['NO', groupByPuskesmas ? 'PUSKESMAS' : 'DESA/KELURAHAN', 'TOTAL KK DISURVEI', 'RUMAH TANGGA SEHAT', 'RUMAH TANGGA TIDAK SEHAT', '% SEHAT (IKS)']
     const rows2: any[][] = [headers2, ...rumahSehatList.map((r, idx) => [
-      idx + 1, r.name, r.totalDisurvei, r.sehat, r.tidakSehat, `${r.pct}%`
+      idx + 1, r.name, r.totalDisurvei, r.sehat, r.tidakSehat, `${r.pct.toFixed(2).replace('.', ',')}%`
     ])]
     const ws2 = XLSX.utils.aoa_to_sheet(rows2)
     XLSX.utils.book_append_sheet(wb, ws2, 'Rumah Sehat')
@@ -383,24 +471,36 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
     
     // Calculate grand totals for Detail Rekap Table
     const grandTotalKkTarget = detailRekapList.reduce((sum, r) => sum + (r.totalKkTarget || 0), 0)
+    const grandTotalDisurvei = detailRekapList.reduce((sum, r) => sum + (r.totalDisurvei || 0), 0)
+    const grandDenom = grandTotalKkTarget > 0 ? grandTotalKkTarget : (grandTotalDisurvei > 0 ? grandTotalDisurvei : 1)
+
     const grandPhbsStats = PHBS_INDICATORS.map((ind, idx) => {
       const numSum = detailRekapList.reduce((sum, r) => sum + (r.phbsStats[idx]?.num || 0), 0)
-      const pct = grandTotalKkTarget > 0 ? Math.round((numSum / grandTotalKkTarget) * 10) / 10 : 0
+      const pct = grandDenom > 0 ? (numSum / grandDenom) * 100 : 0
       return { key: ind.key, num: numSum, pct }
     })
     const grandNonPhbsStats = NON_PHBS_INDICATORS.map((ind, idx) => {
       const numSum = detailRekapList.reduce((sum, r) => sum + (r.nonPhbsStats[idx]?.num || 0), 0)
-      const pct = grandTotalKkTarget > 0 ? Math.round((numSum / grandTotalKkTarget) * 10) / 10 : 0
+      const pct = grandDenom > 0 ? (numSum / grandDenom) * 100 : 0
       return { key: ind.key, num: numSum, pct }
     })
 
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8 print-section">
-        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white hide-on-print">
+        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white hide-on-print flex items-center justify-between">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
             <span className="w-1.5 h-4 bg-purple-500 rounded-full"></span>
             Detail Rekapitulasi {groupByPuskesmas ? 'Puskesmas' : 'Desa'}
           </h3>
+          {isLoadingPkmData && (
+            <span className="text-xs text-blue-600 flex items-center gap-1.5 font-medium animate-pulse">
+              <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Menyinkronkan data...
+            </span>
+          )}
         </div>
         <div className="overflow-x-auto print-overflow-visible">
           <table className="w-full text-left border-collapse border-y border-gray-200 print:border-black print:text-[10px]">
@@ -432,8 +532,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
                     <td rowSpan={3} className="border border-gray-200 print:border-black px-2 text-center text-gray-500 font-medium">{idx + 1}</td>
                     <td rowSpan={3} className="border border-gray-200 print:border-black px-4 font-bold text-gray-900 uppercase">{row.name}</td>
                     <td className="border border-gray-200 print:border-black px-4 font-semibold text-center text-gray-600">TOTAL</td>
-                    {row.phbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{row.totalKkTarget}</td>)}
-                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{row.totalKkTarget}</td>)}
+                    {row.phbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{row.totalKkTarget > 0 ? row.totalKkTarget : row.totalDisurvei}</td>)}
+                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-medium text-gray-700">{row.totalKkTarget > 0 ? row.totalKkTarget : row.totalDisurvei}</td>)}
                   </tr>
                   {/* Row YG DI KAJI */}
                   <tr className="hover:bg-gray-50/50 transition-colors">
@@ -444,8 +544,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
                   {/* Row % */}
                   <tr className="bg-emerald-50/60 print:bg-transparent font-bold">
                     <td className="border border-gray-200 print:border-black px-4 text-center text-emerald-800 print:text-black">%</td>
-                    {row.phbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-700 print:text-black">{s.pct.toFixed(1).replace('.', ',')}</td>)}
-                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-700 print:text-black">{s.pct.toFixed(1).replace('.', ',')}</td>)}
+                    {row.phbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-700 print:text-black">{s.pct.toFixed(2).replace('.', ',')}</td>)}
+                    {row.nonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-700 print:text-black">{s.pct.toFixed(2).replace('.', ',')}</td>)}
                   </tr>
                 </React.Fragment>
               )) : null}
@@ -456,8 +556,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
                     <td rowSpan={3} className="border border-gray-200 print:border-black px-2 text-center text-gray-700 font-bold">∑</td>
                     <td rowSpan={3} className="border border-gray-200 print:border-black px-4 font-bold text-gray-900 uppercase">JUMLAH TOTAL</td>
                     <td className="border border-gray-200 print:border-black px-4 font-bold text-center text-gray-700">TOTAL</td>
-                    {grandPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{grandTotalKkTarget}</td>)}
-                    {grandNonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{grandTotalKkTarget}</td>)}
+                    {grandPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{grandTotalKkTarget > 0 ? grandTotalKkTarget : grandTotalDisurvei}</td>)}
+                    {grandNonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center font-bold text-gray-900">{grandTotalKkTarget > 0 ? grandTotalKkTarget : grandTotalDisurvei}</td>)}
                   </tr>
                   {/* Row YG DI KAJI */}
                   <tr className="bg-gray-100 font-bold hover:bg-gray-100/80 transition-colors">
@@ -468,8 +568,8 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
                   {/* Row % */}
                   <tr className="bg-emerald-100 font-bold hover:bg-emerald-100/80 transition-colors">
                     <td className="border border-gray-200 print:border-black px-4 text-center text-emerald-900">%</td>
-                    {grandPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-800">{s.pct.toFixed(1).replace('.', ',')}</td>)}
-                    {grandNonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-800">{s.pct.toFixed(1).replace('.', ',')}</td>)}
+                    {grandPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-800">{s.pct.toFixed(2).replace('.', ',')}</td>)}
+                    {grandNonPhbsStats.map((s, i) => <td key={i} className="border border-gray-200 print:border-black px-2 text-center text-emerald-800">{s.pct.toFixed(2).replace('.', ',')}</td>)}
                   </tr>
                 </React.Fragment>
               )}
@@ -491,15 +591,24 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
     const grandTotalDisurvei = rumahSehatList.reduce((sum, r) => sum + (r.totalDisurvei || 0), 0)
     const grandSehat = rumahSehatList.reduce((sum, r) => sum + (r.sehat || 0), 0)
     const grandTidakSehat = rumahSehatList.reduce((sum, r) => sum + (r.tidakSehat || 0), 0)
-    const grandPctSehat = grandTotalDisurvei > 0 ? Math.round((grandSehat / grandTotalDisurvei) * 100) : 0
+    const grandPctSehat = grandTotalDisurvei > 0 ? (grandSehat / grandTotalDisurvei) * 100 : 0
 
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-8 print-section">
-        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white hide-on-print">
+        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white hide-on-print flex items-center justify-between">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
             <span className="w-1.5 h-4 bg-blue-500 rounded-full"></span>
             Rekapitulasi per {groupByPuskesmas ? 'Puskesmas' : 'Desa'}
           </h3>
+          {isLoadingPkmData && (
+            <span className="text-xs text-blue-600 flex items-center gap-1.5 font-medium animate-pulse">
+              <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Memuat data desa...
+            </span>
+          )}
         </div>
         <div className="overflow-x-auto print-overflow-visible">
           <table className="w-full text-left border-collapse border border-gray-200">
@@ -526,7 +635,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
                           row.pct >= 80 ? 'bg-emerald-500 text-white shadow-emerald-500/20' :
                           row.pct >= 50 ? 'bg-amber-500 text-white shadow-amber-500/20' : 'bg-red-500 text-white shadow-red-500/20'
                         }`}>
-                          {row.pct}%
+                          {row.pct.toFixed(2).replace('.', ',')}%
                         </span>
                       </td>
                     </tr>
@@ -541,7 +650,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
                   <td className="px-6 py-5 text-center font-bold text-red-600">{grandTidakSehat}</td>
                   <td className="px-6 py-5 text-center">
                     <span className="px-3 py-1.5 rounded-full text-xs font-extrabold bg-blue-600 text-white shadow-md shadow-blue-500/20">
-                      {grandPctSehat}%
+                      {grandPctSehat.toFixed(2).replace('.', ',')}%
                     </span>
                   </td>
                 </tr>
@@ -692,7 +801,7 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
       {activeMainTab === 'rekap' ? (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          {isSuperAdmin && renderDetailRekapTable()}
+          {renderDetailRekapTable()}
           {renderRumahSehatTable()}
 
           {/* Detail per Rumah Tangga */}
@@ -769,46 +878,58 @@ export default function RekapClient({ appUser, surveysData, summaryData, puskesm
                           </td>
                         </tr>
                         
-                        {/* Expanded ART Rows - Changed text color to black/gray-900 here! */}
-                        {expandedRows[s.id] && s.survey_art_responses && s.survey_art_responses.length > 0 && (
+                        {/* Expanded ART Rows */}
+                        {expandedRows[s.id] && (
                           <tr className="bg-gray-50/50">
-                            <td colSpan={18} className="px-8 py-4">
-                              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                                <table className="w-full text-xs text-left">
-                                  <thead className="bg-gray-100/80 text-gray-800 font-bold border-b border-gray-200">
-                                    <tr>
-                                      <th className="px-4 py-2">Nama ART</th>
-                                      <th className="px-4 py-2">NIK / Hub. KK</th>
-                                      <th className="px-2 py-2 text-center" title="Persalinan Nakes">Persalinan</th>
-                                      <th className="px-2 py-2 text-center" title="ASI Eksklusif">ASI</th>
-                                      <th className="px-2 py-2 text-center" title="Menimbang Balita">Timbang</th>
-                                      <th className="px-2 py-2 text-center" title="Cuci Tangan">CTPS</th>
-                                      <th className="px-2 py-2 text-center" title="Makan Sayur Buah">Sayur</th>
-                                      <th className="px-2 py-2 text-center" title="Aktivitas Fisik">Aktifitas</th>
-                                      <th className="px-2 py-2 text-center" title="Tidak Merokok">Tdk Rokok</th>
-                                      <th className="px-2 py-2 text-center" title="Cek Kesehatan">Cek Kes.</th>
-                                      <th className="px-2 py-2 text-center" title="Posyandu">Posyandu</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-gray-100">
-                                    {s.survey_art_responses.map((art: any) => (
-                                      <tr key={art.id} className="hover:bg-gray-50 text-gray-900">
-                                        <td className="px-4 py-2 font-bold">{art.family_members?.nama || '-'}</td>
-                                        <td className="px-4 py-2 font-medium">{art.family_members?.nik || '-'}<br/><span className="text-[10px] text-gray-500 font-normal">{art.family_members?.hubungan_kk || ''}</span></td>
-                                        <td className="px-2 py-2 text-center">{art.i1_persalinan_nakes !== null && art.i1_persalinan_nakes !== undefined ? formatBool(art.i1_persalinan_nakes) : <span className="text-gray-300 text-xs">N/A</span>}</td>
-                                        <td className="px-2 py-2 text-center">{art.i2_asi_eksklusif !== null && art.i2_asi_eksklusif !== undefined ? formatBool(art.i2_asi_eksklusif) : <span className="text-gray-300 text-xs">N/A</span>}</td>
-                                        <td className="px-2 py-2 text-center">{art.i3_menimbang_balita !== null && art.i3_menimbang_balita !== undefined ? formatBool(art.i3_menimbang_balita) : <span className="text-gray-300 text-xs">N/A</span>}</td>
-                                        <td className="px-2 py-2 text-center">{formatBool(art.i5_cuci_tangan)}</td>
-                                        <td className="px-2 py-2 text-center">{formatBool(art.i8_makan_sayur_buah)}</td>
-                                        <td className="px-2 py-2 text-center">{formatBool(art.i9_aktivitas_fisik)}</td>
-                                        <td className="px-2 py-2 text-center">{formatBool(art.i10_tidak_merokok)}</td>
-                                        <td className="px-2 py-2 text-center">{formatBool(art.g_cek_kesehatan)}</td>
-                                        <td className="px-2 py-2 text-center">{formatBool(art.g_posyandu_hadir)}</td>
+                            <td colSpan={14} className="px-8 py-4">
+                              {loadingArtMap[s.id] ? (
+                                <div className="flex items-center justify-center p-4 text-sm text-blue-600 gap-2 font-medium">
+                                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                  </svg>
+                                  Memuat rincian Anggota Rumah Tangga (ART)...
+                                </div>
+                              ) : (artResponsesMap[s.id] && artResponsesMap[s.id].length > 0) ? (
+                                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                  <table className="w-full text-xs text-left">
+                                    <thead className="bg-gray-100/80 text-gray-800 font-bold border-b border-gray-200">
+                                      <tr>
+                                        <th className="px-4 py-2">Nama ART</th>
+                                        <th className="px-4 py-2">NIK / Hub. KK</th>
+                                        <th className="px-2 py-2 text-center" title="Persalinan Nakes">Persalinan</th>
+                                        <th className="px-2 py-2 text-center" title="ASI Eksklusif">ASI</th>
+                                        <th className="px-2 py-2 text-center" title="Menimbang Balita">Timbang</th>
+                                        <th className="px-2 py-2 text-center" title="Cuci Tangan">CTPS</th>
+                                        <th className="px-2 py-2 text-center" title="Makan Sayur Buah">Sayur</th>
+                                        <th className="px-2 py-2 text-center" title="Aktivitas Fisik">Aktifitas</th>
+                                        <th className="px-2 py-2 text-center" title="Tidak Merokok">Tdk Rokok</th>
+                                        <th className="px-2 py-2 text-center" title="Cek Kesehatan">Cek Kes.</th>
+                                        <th className="px-2 py-2 text-center" title="Posyandu">Posyandu</th>
                                       </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {artResponsesMap[s.id].map((art: any) => (
+                                        <tr key={art.id} className="hover:bg-gray-50 text-gray-900">
+                                          <td className="px-4 py-2 font-bold">{art.family_members?.nama || '-'}</td>
+                                          <td className="px-4 py-2 font-medium">{art.family_members?.nik || '-'}<br/><span className="text-[10px] text-gray-500 font-normal">{art.family_members?.hubungan_kk || ''}</span></td>
+                                          <td className="px-2 py-2 text-center">{art.i1_persalinan_nakes !== null && art.i1_persalinan_nakes !== undefined ? formatBool(art.i1_persalinan_nakes) : <span className="text-gray-300 text-xs">N/A</span>}</td>
+                                          <td className="px-2 py-2 text-center">{art.i2_asi_eksklusif !== null && art.i2_asi_eksklusif !== undefined ? formatBool(art.i2_asi_eksklusif) : <span className="text-gray-300 text-xs">N/A</span>}</td>
+                                          <td className="px-2 py-2 text-center">{art.i3_menimbang_balita !== null && art.i3_menimbang_balita !== undefined ? formatBool(art.i3_menimbang_balita) : <span className="text-gray-300 text-xs">N/A</span>}</td>
+                                          <td className="px-2 py-2 text-center">{formatBool(art.i5_cuci_tangan)}</td>
+                                          <td className="px-2 py-2 text-center">{formatBool(art.i8_makan_sayur_buah)}</td>
+                                          <td className="px-2 py-2 text-center">{formatBool(art.i9_aktivitas_fisik)}</td>
+                                          <td className="px-2 py-2 text-center">{formatBool(art.i10_tidak_merokok)}</td>
+                                          <td className="px-2 py-2 text-center">{formatBool(art.g_cek_kesehatan)}</td>
+                                          <td className="px-2 py-2 text-center">{formatBool(art.g_posyandu_hadir)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <div className="p-3 text-center text-xs text-gray-400">Tidak ada rincian data ART untuk rumah tangga ini.</div>
+                              )}
                             </td>
                           </tr>
                         )}
