@@ -5,6 +5,8 @@
 .env.local
 .env*.local
 seed_users.mjs
+supabase-backup-2026-09-28/
+backup-supabase.mjs
 
 # ============================================================
 # Node.js
@@ -27,3 +29,6 @@ dist/
 # ============================================================
 .DS_Store
 Thumbs.db
+
+.vercel
+.env*

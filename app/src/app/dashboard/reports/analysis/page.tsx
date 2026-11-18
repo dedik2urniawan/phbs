@@ -1,21 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ReportsClient from '../ReportsClient'
 import { getCachedAnalysisSurveys, getCachedSasaranByTahun, getCachedRefData, getCachedAnalysisAnalytics, getCachedDashboardAggregates } from '@/lib/data/dashboard'
+import { getServerAppUser } from '@/lib/data/serverAuth'
 
 export default async function AnalisisLaporanPage({ searchParams }: { searchParams: Promise<{ tahun?: string }> }) {
   const params = await searchParams
-  const supabase = await createClient()
-  
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
-  if (!user) redirect('/login?mode=admin')
-
-  const { data: appUser } = await supabase
-    .from('app_users')
-    .select('*, ref_puskesmas(id, nama, kecamatan)')
-    .eq('id', user.id)
-    .single()
+  const appUser = await getServerAppUser()
+  if (!appUser) redirect('/login?mode=admin')
 
   const isSuperAdmin = appUser?.role === 'superadmin'
   const puskesmasIdFilter = isSuperAdmin ? null : appUser?.puskesmas_id

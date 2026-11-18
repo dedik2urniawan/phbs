@@ -1,9 +1,63 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function isOfflineMode(): boolean {
+  if (process.env.OFFLINE_SNAPSHOT_MODE === 'true') return true
+  if (process.env.NEXT_PUBLIC_OFFLINE_SNAPSHOT_MODE === 'true') return true
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return true
+  }
+  return false
+}
+
+function hasValidViewerCookie(request: NextRequest): boolean {
+  const cookie = request.cookies.get('phbs_viewer_auth')?.value
+  if (!cookie || !cookie.startsWith('verified:')) return false
+  const expectedCode = (process.env.VIEWER_ACCESS_CODE || 'PHBS2026').trim()
+  const expectedToken = 'verified:' + btoa(expectedCode)
+  return cookie === expectedToken
+}
+
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
   const { pathname } = request.nextUrl
+
+  if (isOfflineMode()) {
+    const isPublicOffline =
+      pathname === '/' ||
+      pathname.startsWith('/viewer-login') ||
+      pathname.startsWith('/api/viewer-auth') ||
+      pathname.startsWith('/_next') ||
+      pathname.startsWith('/data') ||
+      pathname.includes('.')
+
+    const isAuthed = hasValidViewerCookie(request)
+
+    if (pathname.startsWith('/login')) {
+      const url = request.nextUrl.clone()
+      url.pathname = isAuthed ? '/dashboard/reports/analysis' : '/viewer-login'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+
+    if (pathname.startsWith('/viewer-login') && isAuthed) {
+      const next = request.nextUrl.searchParams.get('next') || '/dashboard/reports/analysis'
+      const url = request.nextUrl.clone()
+      url.pathname = next
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+
+    if (!isAuthed && !isPublicOffline) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/viewer-login'
+      url.searchParams.set('next', pathname)
+      return NextResponse.redirect(url)
+    }
+
+    return NextResponse.next({ request })
+  }
+
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

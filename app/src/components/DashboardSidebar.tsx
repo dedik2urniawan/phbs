@@ -17,11 +17,17 @@ interface Props {
 export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props) {
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
+  const isSnapshotMode = user?.id === 'snapshot-viewer'
   const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   const handleLogout = async () => {
+    if (isSnapshotMode) {
+      await fetch('/api/viewer-auth', { method: 'DELETE' }).catch(() => {})
+      window.location.href = '/viewer-login'
+      return
+    }
     try {
+      const supabase = createClient()
       await supabase.auth.signOut()
     } catch (err) {
       console.error('Logout error:', err)
@@ -30,7 +36,7 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
   }
 
   const roles: Record<string, string> = {
-    superadmin: 'Super Admin',
+    superadmin: isSnapshotMode ? 'Mode Paparan' : 'Super Admin',
     admin_puskesmas: 'Admin Puskesmas',
     stakeholder: 'Stakeholder',
   }
@@ -40,24 +46,30 @@ export default function DashboardSidebar({ user, isCollapsed, onToggle }: Props)
   const isPkmInactive = !isSuperAdmin && user?.ref_puskesmas?.is_active === false
   const puskesmasName = isSuperAdmin ? 'Dinkes Kab. Malang' : `Puskesmas ${user?.ref_puskesmas?.nama || ''}`.trim()
 
-  const menuItems = [
-    { icon: '📊', label: 'Dashboard', href: '/dashboard' },
-    { icon: '🏠', label: 'Data Rumah Tangga', href: '/dashboard/households' },
-    { icon: '📋', label: 'Input Survei', href: '/dashboard/survey/new' },
-    { icon: '📑', label: 'Rekap Laporan PHBS', href: '/dashboard/reports/rekap' },
-    { icon: '📈', label: 'Analisis Laporan', href: '/dashboard/reports/analysis' },
-  ]
+  const menuItems = isSnapshotMode
+    ? [
+        { icon: '📊', label: 'Dashboard', href: '/dashboard' },
+        { icon: '📑', label: 'Rekap Laporan PHBS', href: '/dashboard/reports/rekap' },
+        { icon: '📈', label: 'Analisis Laporan', href: '/dashboard/reports/analysis' },
+      ]
+    : [
+        { icon: '📊', label: 'Dashboard', href: '/dashboard' },
+        { icon: '🏠', label: 'Data Rumah Tangga', href: '/dashboard/households' },
+        { icon: '📋', label: 'Input Survei', href: '/dashboard/survey/new' },
+        { icon: '📑', label: 'Rekap Laporan PHBS', href: '/dashboard/reports/rekap' },
+        { icon: '📈', label: 'Analisis Laporan', href: '/dashboard/reports/analysis' },
+      ]
 
-  if (isSuperAdmin || user?.role === 'admin_puskesmas') {
+  if (!isSnapshotMode && (isSuperAdmin || user?.role === 'admin_puskesmas')) {
     menuItems.push({ icon: '🎯', label: 'Input Sasaran KK', href: '/dashboard/sasaran' })
     menuItems.push({ icon: '🏷️', label: 'Input Kader PHBS', href: '/dashboard/kader' })
   }
 
-  if (isSuperAdmin || user?.role === 'admin_puskesmas') {
+  if (!isSnapshotMode && (isSuperAdmin || user?.role === 'admin_puskesmas')) {
     menuItems.push({ icon: '👥', label: 'Manajemen User', href: '/dashboard/users' })
   }
 
-  if (isSuperAdmin) {
+  if (!isSnapshotMode && isSuperAdmin) {
     menuItems.push({ icon: '🗓️', label: 'Manajemen Jadwal', href: '/dashboard/schedule' })
   }
 

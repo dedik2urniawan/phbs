@@ -22,8 +22,10 @@ import {
   Building2, 
   ChevronRight,
   Sparkles,
-  Info
+  Info,
+  Users
 } from 'lucide-react'
+import AgeAnalysisTab from './AgeAnalysisTab'
 
 const DynamicMap = dynamic(() => import('@/components/MapChart'), {
   ssr: false,
@@ -111,7 +113,7 @@ export default function ReportsClient({
   )
   const [selectedDesa, setSelectedDesa] = useState<string>('all')
   const [selectedIndicator, setSelectedIndicator] = useState<string>('iks')
-  const [activeTab, setActiveTab] = useState<'analytics' | 'closing' | 'dissemination'>('analytics')
+  const [activeTab, setActiveTab] = useState<'analytics' | 'closing' | 'dissemination' | 'age'>('analytics')
   
   // AI Dissemination states
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
@@ -583,6 +585,17 @@ export default function ReportsClient({
           >
             <FileCheck2 className="w-4 h-4" />
             Lembar Diseminasi Eksekutif
+          </button>
+          <button
+            onClick={() => setActiveTab('age')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'age'
+                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Analisis by Kategori Usia
           </button>
         </div>
 
@@ -1207,6 +1220,15 @@ export default function ReportsClient({
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === 'age' && (
+        <AgeAnalysisTab
+          selectedPuskesmas={selectedPuskesmas}
+          selectedDesa={selectedDesa}
+          puskesmasList={puskesmasList}
+          desaList={desaList}
+        />
       )}
     </div>
   )

@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache } from 'next/cache'
+import {
+  isOfflineSnapshotMode,
+  getSnapshotDashboardAggregates,
+  getSnapshotAnalysisAnalytics,
+  getSnapshotRefData,
+  getSnapshotSasaran,
+} from '@/lib/data/offlineSnapshot'
 
 // Custom In-Memory Cache untuk melewati batasan 2MB dari Next.js unstable_cache
 const memoryCache: Record<string, { data: any, timestamp: number }> = {}
@@ -227,6 +234,9 @@ async function computeParallelAggregates(supabase: any, tahun: number, puskesmas
 // DASHBOARD - Aggregates (Main High-Speed Function)
 // ==========================================
 export const getCachedDashboardAggregates = async (tahun: number = 2026, puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return getSnapshotDashboardAggregates(tahun, puskesmasId)
+  }
   const cacheKey = `dashboard-aggregates-v10-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
@@ -348,6 +358,9 @@ export const getCachedHouseholdCounts = async (puskesmasId?: string | null) => {
 // DASHBOARD - Surveys (Scoped & Zero-Lag)
 // ==========================================
 export const getCachedSurveys = async (puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return []
+  }
   if (puskesmasId) {
     const cacheKey = `dashboard-surveys-v9-${puskesmasId}`
     return withMemoryCache(cacheKey, 28800, async () => {
@@ -369,6 +382,9 @@ export const getCachedSurveys = async (puskesmasId?: string | null) => {
 // DASHBOARD - Sasaran KK (always small)
 // ==========================================
 export const getCachedSasaran = async (puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return getSnapshotSasaran(undefined, puskesmasId)
+  }
   const cacheKey = `dashboard-sasaran-v9-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
@@ -381,7 +397,14 @@ export const getCachedSasaran = async (puskesmasId?: string | null) => {
 // ==========================================
 // REF DATA - Puskesmas & Desa (always small, cache 8 hours)
 // ==========================================
-export const getCachedRefData = unstable_cache(
+export const getCachedRefData = async () => {
+  if (isOfflineSnapshotMode()) {
+    return getSnapshotRefData()
+  }
+  return getCachedRefDataSupabase()
+}
+
+const getCachedRefDataSupabase = unstable_cache(
   async () => {
     const supabase = getServiceSupabase()
     const [pkmRes, desaRes] = await Promise.all([
@@ -401,6 +424,9 @@ export const getCachedRefData = unstable_cache(
 // REKAP - Surveys WITHOUT ART responses (lightweight)
 // ==========================================
 export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return []
+  }
   const cacheKey = `dashboard-rekap-v9-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
@@ -420,6 +446,9 @@ export const getCachedRekapSurveys = async (tahun: number, puskesmasId?: string 
 // REKAP - Surveys WITH ART responses (heavy, used for per-KK detail Excel export)
 // ==========================================
 export const getCachedRekapSurveysWithART = async (tahun: number, puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return []
+  }
   const cacheKey = `dashboard-rekap-art-v9-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 14400, async () => {
     const supabase = getServiceSupabase()
@@ -439,6 +468,9 @@ export const getCachedRekapSurveysWithART = async (tahun: number, puskesmasId?: 
 // ANALYSIS - Structured Analytics Function
 // ==========================================
 export const getCachedAnalysisAnalytics = async (tahun: number, puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return getSnapshotAnalysisAnalytics(tahun, puskesmasId)
+  }
   const cacheKey = `dashboard-analysis-analytics-v9-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
@@ -520,6 +552,9 @@ export const getCachedAnalysisAnalytics = async (tahun: number, puskesmasId?: st
 
 // Backward-compatible export for analysis page
 export const getCachedAnalysisSurveys = async (tahun: number, puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return []
+  }
   if (puskesmasId) {
     const cacheKey = `dashboard-analysis-v9-${tahun}-${puskesmasId}`
     return withMemoryCache(cacheKey, 28800, async () => {
@@ -537,6 +572,9 @@ export const getCachedAnalysisSurveys = async (tahun: number, puskesmasId?: stri
 // SASARAN by Tahun (for rekap/analysis pages)
 // ==========================================
 export const getCachedSasaranByTahun = async (tahun: number, puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return getSnapshotSasaran(tahun, puskesmasId)
+  }
   const cacheKey = `dashboard-sasaran-tahun-v9-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
@@ -550,6 +588,9 @@ export const getCachedSasaranByTahun = async (tahun: number, puskesmasId?: strin
 // DATA RESPONDEN (Server-side Cached)
 // ==========================================
 export const getCachedRespondentStats = async (tahun: number, puskesmasId?: string | null) => {
+  if (isOfflineSnapshotMode()) {
+    return []
+  }
   const cacheKey = `dashboard-respondent-data-v9-${tahun}-${puskesmasId || 'ALL'}`
   return withMemoryCache(cacheKey, 28800, async () => {
     const supabase = getServiceSupabase()
